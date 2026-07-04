@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>TweakTags vanilla demo &mdash; admin panel</title>
+    <style>
+      body {
+        margin: 0;
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="admin"></div>
+
+    <script src="./mock-api.js"></script>
+    <script src="../../packages/vanillajs/dist/index.global.js"></script>
+    <script>
+      //A full page admin dashboard on its own route. Sign in with
+      //admin@example.com / password.
+      TweakTags.mountAdmin('#admin', { apiBasePath: '/api/tweaktags', richText: true });
+    </script>
+  </body>
+</html>

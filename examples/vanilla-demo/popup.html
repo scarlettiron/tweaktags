@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>TweakTags vanilla demo &mdash; popup editor</title>
+    <style>
+      body {
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+        max-width: 820px;
+        margin: 0 auto;
+        padding: 2rem 1rem 7rem;
+        color: #111;
+        line-height: 1.6;
+      }
+      nav a {
+        margin-right: 1rem;
+      }
+      .banner {
+        height: 220px;
+        border-radius: 14px;
+        background: #e9edf5;
+        margin: 1.25rem 0;
+      }
+      .note {
+        background: #eef4ff;
+        border: 1px solid #cfe0ff;
+        padding: 1rem 1.25rem;
+        border-radius: 10px;
+      }
+      code {
+        background: #eef1f6;
+        padding: 0.1em 0.35em;
+        border-radius: 4px;
+      }
+    </style>
+  </head>
+  <body>
+    <nav>
+      <a href="./index.html">Edit in place</a>
+      <a href="./popup.html"><strong>Popup editor</strong></a>
+      <a href="./admin.html">Admin panel</a>
+    </nav>
+
+    <h1 data-tweaktags-hero-title>Welcome</h1>
+    <p data-tweaktags-hero-subtitle>This subtitle is editable.</p>
+    <div class="banner" data-tweaktags-hero-banner></div>
+
+    <div class="note">
+      <p>
+        This page runs with <code>editInView: false</code>. Sign in with
+        <code>admin@example.com</code> / <code>password</code>, then click <strong>Edit page</strong>
+        and a scrollable popup lists every tag with an input, prefilled with its content. Change what
+        you want and save it all at once.
+      </p>
+    </div>
+
+    <script src="./mock-api.js"></script>
+    <script src="../../packages/vanillajs/dist/index.global.js"></script>
+    <script>
+      TweakTags.init({ apiBasePath: '/api/tweaktags', richText: true, editInView: false });
+    </script>
+  </body>
+</html>

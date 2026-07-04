@@ -1,0 +1,45 @@
+{
+  "name": "tweaktags-monorepo",
+  "version": "0.0.0",
+  "private": true,
+  "description": "TweakTags, a lightweight edit in place content layer for static React and Next sites",
+  "packageManager": "pnpm@11.9.0",
+  "engines": {
+    "node": ">=16"
+  },
+  "scripts": {
+    "build": "pnpm -r --filter \"./packages/*\" build",
+    "pack:all": "rm -rf tweaktags-pack && mkdir -p tweaktags-pack && for p in core db-postgres db-mysql db-mariadb db-sqlite auth-jwt storage-s3 server browser vanillajs react next cli; do (cd packages/$p && pnpm pack --pack-destination ../../tweaktags-pack); done && echo 'Tarballs written to ./tweaktags-pack'",
+    "build:pack": "pnpm build && pnpm pack:all",
+    "typecheck": "pnpm -r --filter \"./packages/*\" typecheck",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "audit": "pnpm audit",
+    "audit:prod": "pnpm audit --prod",
+    "audit:high": "pnpm audit --audit-level high",
+    "audit:fix": "pnpm audit --fix",
+    "changeset": "changeset",
+    "release": "pnpm build && changeset publish"
+  },
+  "devDependencies": {
+    "@changesets/cli": "^2.27.9",
+    "@stylistic/eslint-plugin": "^2.10.1",
+    "@types/node": "^22.9.0",
+    "@tweaktags/auth-jwt": "workspace:*",
+    "@tweaktags/browser": "workspace:*",
+    "@tweaktags/core": "workspace:*",
+    "@tweaktags/db-sqlite": "workspace:*",
+    "@tweaktags/server": "workspace:*",
+    "@tweaktags/vanillajs": "workspace:*",
+    "eslint": "^9.14.0",
+    "happy-dom": "^15.11.6",
+    "prettier": "^3.3.3",
+    "tsup": "^8.3.5",
+    "typescript": "^5.6.3",
+    "typescript-eslint": "^8.13.0",
+    "vitest": "^2.1.4"
+  }
+}

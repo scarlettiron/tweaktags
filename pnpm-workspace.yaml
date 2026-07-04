@@ -1,0 +1,10 @@
+packages:
+  - 'packages/*'
+  - 'examples/*'
+
+# Allow only these dependencies to run their install build scripts.
+# esbuild needs this so tsup can build the packages. better-sqlite3 needs it so
+# its native binding is available for the SQLite adapter and its tests.
+onlyBuiltDependencies:
+  - esbuild
+  - better-sqlite3

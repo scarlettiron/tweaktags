@@ -1,0 +1,39 @@
+{
+  "name": "@tweaktags/storage-s3",
+  "version": "1.0.0",
+  "description": "S3 and S3 compatible media storage adapter for TweakTags, using presigned uploads",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=16"
+  },
+  "files": [
+    "dist"
+  ],
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "clean": "rimraf dist"
+  },
+  "dependencies": {
+    "@tweaktags/core": "workspace:*",
+    "@aws-sdk/client-s3": "^3.600.0",
+    "@aws-sdk/s3-request-presigner": "^3.600.0"
+  },
+  "devDependencies": {
+    "rimraf": "^6.0.1",
+    "tsup": "^8.3.5",
+    "typescript": "^5.6.3"
+  },
+  "author": "Scarlett A. Scott (codescarlett)"
+}

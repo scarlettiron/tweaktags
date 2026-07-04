@@ -1,0 +1,1349 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>TweakTags &mdash; edit in place content for React and Next</title>
+    <meta
+      name="description"
+      content="TweakTags is a lightweight, npm installable edit in place content layer for otherwise static React and Next sites."
+    />
+    <style>
+      :root {
+        --bg: #0e0f13;
+        --surface: #14151a;
+        --raised: #1e2028;
+        --border: #2b2d38;
+        --text: #f3f4f6;
+        --muted: #9aa0ac;
+        --primary: #0a84ff;
+        --primary-hover: #3d9bff;
+        --danger: #e5484d;
+        --code-bg: #0b0c10;
+        --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        --mono: "SFMono-Regular", ui-monospace, "JetBrains Mono", Menlo, Consolas, monospace;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        scroll-behavior: smooth;
+      }
+
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font-family: var(--font);
+        line-height: 1.6;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      a {
+        color: var(--primary);
+        text-decoration: none;
+      }
+
+      a:hover {
+        color: var(--primary-hover);
+      }
+
+      code {
+        font-family: var(--mono);
+        font-size: 0.9em;
+        background: var(--raised);
+        border: 1px solid var(--border);
+        padding: 0.1em 0.35em;
+        border-radius: 0.3rem;
+      }
+
+      /* Top bar */
+      header.site {
+        position: sticky;
+        top: 0;
+        z-index: 50;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        padding: 0.9rem 1.5rem;
+        background: rgba(14, 15, 19, 0.85);
+        backdrop-filter: blur(10px);
+        border-bottom: 1px solid var(--border);
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+        font-weight: 700;
+        font-size: 1.15rem;
+        color: var(--text);
+      }
+
+      .brand .dot {
+        width: 1.5rem;
+        height: 1.5rem;
+        border-radius: 0.45rem;
+        background: linear-gradient(135deg, var(--primary), #3d9bff);
+        box-shadow: 0 4px 14px rgba(10, 132, 255, 0.5);
+      }
+
+      header.site .links {
+        display: flex;
+        gap: 1.25rem;
+        align-items: center;
+        font-size: 0.95rem;
+      }
+
+      /* Layout */
+      .layout {
+        display: grid;
+        grid-template-columns: 240px minmax(0, 1fr);
+        gap: 2.5rem;
+        max-width: 1180px;
+        margin: 0 auto;
+        padding: 2rem 1.5rem 6rem;
+      }
+
+      nav.side {
+        position: sticky;
+        top: 5rem;
+        align-self: start;
+        height: max-content;
+      }
+
+      nav.side .group {
+        font-size: 0.72rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--muted);
+        margin: 1.25rem 0 0.5rem;
+      }
+
+      nav.side a {
+        display: block;
+        padding: 0.35rem 0.7rem;
+        border-radius: 0.4rem;
+        color: var(--muted);
+        font-size: 0.92rem;
+        border-left: 2px solid transparent;
+      }
+
+      nav.side a:hover {
+        color: var(--text);
+        background: var(--surface);
+      }
+
+      nav.side a.active {
+        color: var(--text);
+        background: var(--surface);
+        border-left-color: var(--primary);
+      }
+
+      main {
+        min-width: 0;
+      }
+
+      section {
+        scroll-margin-top: 5rem;
+        padding: 1.5rem 0 2.5rem;
+        border-bottom: 1px solid var(--border);
+      }
+
+      section:last-child {
+        border-bottom: none;
+      }
+
+      h1 {
+        font-size: clamp(2rem, 5vw, 3rem);
+        line-height: 1.1;
+        margin: 0 0 1rem;
+        letter-spacing: -0.02em;
+      }
+
+      h2 {
+        font-size: 1.6rem;
+        margin: 0 0 1rem;
+        letter-spacing: -0.01em;
+      }
+
+      h3 {
+        font-size: 1.1rem;
+        margin: 1.75rem 0 0.6rem;
+      }
+
+      .lede {
+        font-size: 1.2rem;
+        color: var(--muted);
+        max-width: 46rem;
+      }
+
+      p {
+        max-width: 46rem;
+      }
+
+      .pill-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin: 1.5rem 0;
+      }
+
+      .pill {
+        font-size: 0.8rem;
+        color: var(--muted);
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        padding: 0.3rem 0.8rem;
+      }
+
+      .cta {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        background: var(--primary);
+        color: #fff;
+        font-weight: 600;
+        padding: 0.6rem 1.1rem;
+        border-radius: 0.5rem;
+        margin-top: 0.5rem;
+      }
+
+      .cta:hover {
+        background: var(--primary-hover);
+        color: #fff;
+      }
+
+      /* Code blocks */
+      .code {
+        position: relative;
+        background: var(--code-bg);
+        border: 1px solid var(--border);
+        border-radius: 0.6rem;
+        margin: 1rem 0;
+        max-width: 46rem;
+      }
+
+      .code .bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0.4rem 0.75rem;
+        border-bottom: 1px solid var(--border);
+        color: var(--muted);
+        font-size: 0.75rem;
+        font-family: var(--mono);
+      }
+
+      .code pre {
+        margin: 0;
+        padding: 1rem;
+        overflow-x: auto;
+        font-family: var(--mono);
+        font-size: 0.85rem;
+        line-height: 1.55;
+        color: #d7dbe6;
+      }
+
+      .code .copy {
+        cursor: pointer;
+        background: var(--raised);
+        color: var(--muted);
+        border: 1px solid var(--border);
+        border-radius: 0.3rem;
+        padding: 0.15rem 0.5rem;
+        font-size: 0.72rem;
+        font-family: var(--font);
+      }
+
+      .code .copy:hover {
+        color: var(--text);
+      }
+
+      .tok-c {
+        color: #6b7280;
+      } /* comment */
+      .tok-k {
+        color: #38bdf8;
+      } /* keyword */
+      .tok-s {
+        color: #98c379;
+      } /* string */
+      .tok-f {
+        color: #82aaff;
+      } /* function or type */
+
+      /* Tables */
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        max-width: 46rem;
+        margin: 1rem 0;
+        font-size: 0.92rem;
+      }
+
+      th,
+      td {
+        text-align: left;
+        padding: 0.55rem 0.75rem;
+        border-bottom: 1px solid var(--border);
+        vertical-align: top;
+      }
+
+      th {
+        color: var(--muted);
+        font-weight: 600;
+      }
+
+      /* Preview stage for rendered UI examples */
+      .stage {
+        position: relative;
+        margin: 1.25rem 0;
+        border: 1px solid var(--border);
+        border-radius: 0.75rem;
+        overflow: hidden;
+        max-width: 46rem;
+      }
+
+      .stage .canvas {
+        position: relative;
+        min-height: 220px;
+        padding: 2rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: radial-gradient(120% 120% at 20% 0%, #2a3350 0%, #16171d 55%, #0e0f13 100%);
+      }
+
+      .stage .tag {
+        position: absolute;
+        top: 0.6rem;
+        left: 0.75rem;
+        font-size: 0.68rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--muted);
+      }
+
+      /* Shared TweakTags widget styles, matching the real components */
+      .v-font {
+        font-family: var(--font);
+        font-size: 14px;
+      }
+
+      .v-bar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.4rem;
+        align-items: center;
+        padding: 0.5rem;
+        border-radius: 0.75rem;
+        border: 1px solid var(--border);
+        background: var(--surface);
+        color: var(--text);
+        box-shadow: 0 10px 34px rgba(0, 0, 0, 0.45);
+      }
+
+      .v-grip {
+        width: 10px;
+        height: 18px;
+        cursor: grab;
+        background-image: radial-gradient(var(--muted) 1.2px, transparent 1.3px);
+        background-size: 5px 5px;
+        background-position: center;
+      }
+
+      .v-email {
+        color: var(--muted);
+        padding: 0 0.35rem;
+      }
+
+      .v-btn {
+        border: none;
+        border-radius: 0.5rem;
+        padding: 0.45rem 0.75rem;
+        font: inherit;
+        font-weight: 600;
+        cursor: pointer;
+        background: var(--primary);
+        color: #fff;
+      }
+
+      .v-btn.subtle {
+        background: var(--raised);
+        border: 1px solid var(--border);
+        color: var(--text);
+        font-weight: 500;
+      }
+
+      .v-btn.icon {
+        width: 2.1rem;
+        padding: 0.45rem 0;
+        text-align: center;
+        background: var(--raised);
+        border: 1px solid var(--border);
+        color: var(--text);
+      }
+
+      .v-btn.danger {
+        background: var(--danger);
+      }
+
+      /* Rich text toolbar */
+      .v-toolbar {
+        display: inline-flex;
+        gap: 0.15rem;
+        padding: 0.3rem;
+        border-radius: 0.5rem;
+        border: 1px solid var(--border);
+        background: var(--surface);
+        box-shadow: 0 10px 34px rgba(0, 0, 0, 0.45);
+      }
+
+      .v-toolbar button {
+        min-width: 2rem;
+        height: 2rem;
+        border: none;
+        border-radius: 0.35rem;
+        background: transparent;
+        color: var(--text);
+        cursor: pointer;
+        font-family: var(--font);
+        font-size: 0.9rem;
+      }
+
+      .v-toolbar button:hover {
+        background: var(--raised);
+      }
+
+      /* Login card */
+      .v-card {
+        width: min(19rem, 100%);
+        display: flex;
+        flex-direction: column;
+        gap: 0.6rem;
+        padding: 0.85rem;
+        border-radius: 0.75rem;
+        border: 1px solid var(--border);
+        background: var(--surface);
+        box-shadow: 0 10px 34px rgba(0, 0, 0, 0.45);
+      }
+
+      .v-card .head {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        font-weight: 600;
+      }
+
+      .v-input {
+        width: 100%;
+        padding: 0.5rem 0.6rem;
+        border-radius: 0.5rem;
+        border: 1px solid var(--border);
+        background: var(--raised);
+        color: var(--text);
+        font: inherit;
+      }
+
+      /* Popup editor */
+      .v-modal {
+        width: 100%;
+        border-radius: 0.6rem;
+        overflow: hidden;
+        border: 1px solid var(--border);
+        background: #111;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+      }
+
+      .v-modal .top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0.85rem 1rem;
+        border-bottom: 1px solid #2a2a2a;
+      }
+
+      .v-modal .body {
+        padding: 1rem;
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+        max-height: 240px;
+        overflow-y: auto;
+        scrollbar-width: thin;
+        scrollbar-color: var(--primary) var(--raised);
+      }
+
+      .v-modal .body::-webkit-scrollbar {
+        width: 10px;
+      }
+      .v-modal .body::-webkit-scrollbar-track {
+        background: #1c1c1c;
+      }
+      .v-modal .body::-webkit-scrollbar-thumb {
+        background: var(--primary);
+        border-radius: 5px;
+      }
+
+      .v-row {
+        display: flex;
+        flex-direction: column;
+        gap: 0.4rem;
+        padding-bottom: 0.9rem;
+        border-bottom: 1px solid #222;
+      }
+
+      .v-label {
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+        color: var(--muted);
+      }
+
+      .v-mono {
+        font-family: var(--mono);
+        font-weight: 600;
+      }
+
+      /* Admin panel */
+      .v-admin {
+        width: 100%;
+        border-radius: 0.6rem;
+        border: 1px solid var(--border);
+        background: #0e0f13;
+        overflow: hidden;
+      }
+
+      .v-admin .top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0.85rem 1rem;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .v-admin .tabs {
+        display: flex;
+        gap: 0.4rem;
+        padding: 0.85rem 1rem 0;
+      }
+
+      .v-admin .panel {
+        margin: 1rem;
+        padding: 1rem;
+        border-radius: 0.6rem;
+        border: 1px solid var(--border);
+        background: var(--surface);
+        display: flex;
+        flex-direction: column;
+        gap: 0.7rem;
+      }
+
+      .v-listrow {
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+        padding: 0.6rem 0.75rem;
+        border-radius: 0.5rem;
+        border: 1px solid var(--border);
+        background: var(--raised);
+      }
+
+      .v-badge {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+        padding: 0.1rem 0.4rem;
+        border-radius: 0.3rem;
+        border: 1px solid var(--border);
+        color: var(--muted);
+      }
+
+      .callout {
+        max-width: 46rem;
+        border: 1px solid var(--border);
+        border-left: 3px solid var(--primary);
+        background: var(--surface);
+        border-radius: 0.5rem;
+        padding: 0.9rem 1.1rem;
+        margin: 1.25rem 0;
+        color: var(--muted);
+      }
+
+      .callout strong {
+        color: var(--text);
+      }
+
+      footer {
+        max-width: 1180px;
+        margin: 0 auto;
+        padding: 2rem 1.5rem 4rem;
+        color: var(--muted);
+        font-size: 0.9rem;
+      }
+
+      /* Responsive */
+      @media (max-width: 820px) {
+        .layout {
+          grid-template-columns: 1fr;
+          gap: 1rem;
+        }
+
+        nav.side {
+          position: static;
+          display: flex;
+          gap: 0.25rem;
+          overflow-x: auto;
+          padding-bottom: 0.5rem;
+          border-bottom: 1px solid var(--border);
+        }
+
+        nav.side .group {
+          display: none;
+        }
+
+        nav.side a {
+          white-space: nowrap;
+          border-left: none;
+          border-bottom: 2px solid transparent;
+        }
+
+        nav.side a.active {
+          border-left: none;
+          border-bottom-color: var(--primary);
+        }
+
+        header.site .links a.hide-sm {
+          display: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="site">
+      <span class="brand"><span class="dot"></span> TweakTags</span>
+      <span class="links">
+        <a class="hide-sm" href="#install">Install</a>
+        <a class="hide-sm" href="#quickstart">Quick start</a>
+        <a href="https://github.com/scarlettiron/tweaktags">GitHub</a>
+      </span>
+    </header>
+
+    <div class="layout">
+      <nav class="side" id="nav">
+        <div class="group">Start</div>
+        <a href="#overview">Overview</a>
+        <a href="#install">Install</a>
+        <a href="#quickstart">Quick start</a>
+        <div class="group">Editing</div>
+        <a href="#modes">Editing modes</a>
+        <a href="#toolbar">Edit bar &amp; toolbar</a>
+        <a href="#popup">Popup editor</a>
+        <a href="#admin">Admin panel</a>
+        <a href="#vanilla">No framework</a>
+        <div class="group">Reference</div>
+        <a href="#databases">Databases</a>
+        <a href="#cli">CLI commands</a>
+        <a href="#tenants">Multi-tenant</a>
+        <a href="#uploads">Media uploads</a>
+        <a href="#security">Security</a>
+      </nav>
+
+      <main>
+        <!-- OVERVIEW -->
+        <section id="overview">
+          <h1>Edit your site, right on the page.</h1>
+          <p class="lede">
+            TweakTags lets you change the words and images on your site without leaving the page.
+            Drop a <code>data-tweaktags-*</code> attribute on any element, and the people you trust
+            can click in and edit it live. Everyone else just sees the finished content. It installs
+            from npm and drops into any React or Next app, or a plain HTML site with a single
+            <a href="#vanilla">script tag</a>.
+          </p>
+
+          <div class="pill-row">
+            <span class="pill">React, Next, or plain JS</span>
+            <span class="pill">Postgres &middot; MySQL &middot; MariaDB &middot; SQLite</span>
+            <span class="pill">JWT auth with roles</span>
+            <span class="pill">Rich text, plain text, media</span>
+            <span class="pill">httpOnly cookies &amp; CSRF</span>
+          </div>
+
+          <a class="cta" href="#install">Get started &rarr;</a>
+
+          <h3>How it works</h3>
+          <p>
+            When a page loads, TweakTags looks for your <code>data-tweaktags-</code> attributes and
+            fills each one with whatever is saved in your database, so every visitor sees the latest
+            content. Sign in, flip on edit mode, and those same spots open up for editing, right on
+            the page, in a popup form, or from a full admin panel, whichever you like. The database
+            work happens on the server through a small handler and a CLI, and none of it ever reaches
+            the browser.
+          </p>
+          <p>
+            A tag can hold plain text, rich text, or <strong>media</strong>. For a media tag you just
+            save an image url. TweakTags puts it on the element for you: on an <code>&lt;img&gt;</code>
+            or <code>&lt;video&gt;</code> it sets the <code>src</code>, and on a container like a
+            <code>&lt;div&gt;</code> it sets it as a cover background image. No upload pipeline to set
+            up, just point at a url you already host.
+          </p>
+        </section>
+
+        <!-- INSTALL -->
+        <section id="install">
+          <h2>Install</h2>
+          <p>Here is everything a Next.js app on Postgres needs to get going:</p>
+
+          <div class="code" data-lang="bash">
+            <div class="bar"><span>terminal</span><button class="copy">Copy</button></div>
+            <pre><span class="tok-c"># the client bindings, server handler, and Postgres adapter</span>
+npm install @tweaktags/next
+<span class="tok-c"># the command line tool, for migrations and users</span>
+npm install -D @tweaktags/cli</pre>
+          </div>
+
+          <p>Using a different database? Add its adapter package alongside the above:</p>
+
+          <div class="code" data-lang="bash">
+            <div class="bar"><span>terminal</span><button class="copy">Copy</button></div>
+            <pre>npm install @tweaktags/db-mysql      <span class="tok-c"># MySQL</span>
+npm install @tweaktags/db-mariadb    <span class="tok-c"># MariaDB</span>
+npm install @tweaktags/db-sqlite     <span class="tok-c"># SQLite</span></pre>
+          </div>
+
+          <div class="callout">
+            <strong>Plain React, not Next?</strong> Install <code>@tweaktags/react</code> and
+            <code>@tweaktags/server</code> instead of <code>@tweaktags/next</code>, and mount the server
+            handler on any Node route.
+          </div>
+        </section>
+
+        <!-- QUICK START -->
+        <section id="quickstart">
+          <h2>Quick start</h2>
+
+          <h3>1. Configure TweakTags</h3>
+          <p>
+            Create a <code>tweaktags.config.ts</code> in your project root. This one file is the
+            source of truth for your database and auth. Pull your secrets from the environment so you
+            never commit them.
+          </p>
+          <div class="code" data-lang="ts">
+            <div class="bar"><span>tweaktags.config.ts</span><button class="copy">Copy</button></div>
+            <pre><span class="tok-k">import</span> { <span class="tok-f">defineConfig</span> } <span class="tok-k">from</span> <span class="tok-s">'@tweaktags/next'</span>;
+
+<span class="tok-k">export default</span> <span class="tok-f">defineConfig</span>({
+  editInView: <span class="tok-k">true</span>,
+  apiBasePath: <span class="tok-s">'/api/tweaktags'</span>,
+  database: {
+    provider: <span class="tok-s">'postgres'</span>,
+    connectionString: process.env.<span class="tok-f">DATABASE_URL</span>,
+  },
+  auth: {
+    provider: <span class="tok-s">'jwt'</span>,
+    jwtSecret: process.env.<span class="tok-f">TWEAKTAGS_JWT_SECRET</span>,
+    cookieSecure: process.env.<span class="tok-f">NODE_ENV</span> === <span class="tok-s">'production'</span>,
+  },
+});</pre>
+          </div>
+
+          <h3>2. Add the API route</h3>
+          <p>Mount the handler once. It reads your config and wires up the database for you.</p>
+          <div class="code" data-lang="ts">
+            <div class="bar"><span>app/api/tweaktags/route.ts</span><button class="copy">Copy</button></div>
+            <pre><span class="tok-k">import</span> { <span class="tok-f">createTweakTagsRouteHandler</span> } <span class="tok-k">from</span> <span class="tok-s">'@tweaktags/next'</span>;
+<span class="tok-k">import</span> tweaktagsConfig <span class="tok-k">from</span> <span class="tok-s">'../../../tweaktags.config.js'</span>;
+
+<span class="tok-k">const</span> { POST } = <span class="tok-f">createTweakTagsRouteHandler</span>(tweaktagsConfig);
+
+<span class="tok-k">export const</span> runtime = <span class="tok-s">'nodejs'</span>;
+<span class="tok-k">export</span> { POST };</pre>
+          </div>
+
+          <h3>3. Wrap your app</h3>
+          <p>Add the provider and the edit bar to your root layout.</p>
+          <div class="code" data-lang="tsx">
+            <div class="bar"><span>app/layout.tsx</span><button class="copy">Copy</button></div>
+            <pre><span class="tok-k">import</span> { <span class="tok-f">TweakTagsProvider</span>, <span class="tok-f">TweakTagsEditBar</span> } <span class="tok-k">from</span> <span class="tok-s">'@tweaktags/next'</span>;
+
+<span class="tok-k">export default function</span> <span class="tok-f">RootLayout</span>({ children }) {
+  <span class="tok-k">return</span> (
+    &lt;html&gt;
+      &lt;body&gt;
+        &lt;<span class="tok-f">TweakTagsProvider</span> apiBasePath=<span class="tok-s">"/api/tweaktags"</span>&gt;
+          {children}
+          &lt;<span class="tok-f">TweakTagsEditBar</span> /&gt;
+        &lt;/<span class="tok-f">TweakTagsProvider</span>&gt;
+      &lt;/body&gt;
+    &lt;/html&gt;
+  );
+}</pre>
+          </div>
+
+          <h3>4. Set up the database and your first user</h3>
+          <div class="code" data-lang="bash">
+            <div class="bar"><span>terminal</span><button class="copy">Copy</button></div>
+            <pre>npx tweaktags migrate
+npx tweaktags create-superuser --email you@example.com --password a-strong-password</pre>
+          </div>
+
+          <h3>5. Mark content as editable</h3>
+          <p>Add a <code>data-tweaktags-{tag}</code> attribute to any element. That is it.</p>
+          <div class="code" data-lang="tsx">
+            <div class="bar"><span>anywhere in your app</span><button class="copy">Copy</button></div>
+            <pre>&lt;h1 data-tweaktags-hero-title&gt;Welcome to my site&lt;/h1&gt;
+&lt;p data-tweaktags-hero-subtitle&gt;The default text lives right here&lt;/p&gt;</pre>
+          </div>
+          <p>
+            Sign in through the edit bar, turn on <strong>Edit page</strong>, and change the text in
+            place. Reload to confirm it saved.
+          </p>
+        </section>
+
+        <!-- MODES -->
+        <section id="modes">
+          <h2>Three ways to edit</h2>
+          <p>
+            Everyone works differently, so TweakTags gives you three ways to edit. They all talk to
+            the same server and the same data, so you can even mix them.
+          </p>
+          <table>
+            <thead>
+              <tr>
+                <th>Mode</th>
+                <th>How you turn it on</th>
+                <th>Best for</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Edit in place</strong></td>
+                <td><code>editInView: true</code> (default)</td>
+                <td>Editing text right where it appears on the page.</td>
+              </tr>
+              <tr>
+                <td><strong>Popup form</strong></td>
+                <td><code>editInView: false</code></td>
+                <td>Editing many tags at once, or hard to click spots.</td>
+              </tr>
+              <tr>
+                <td><strong>Admin panel</strong></td>
+                <td>Render <code>&lt;TweakTagsAdminPanel /&gt;</code> on a route</td>
+                <td>A traditional dashboard on its own page.</td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+
+        <!-- TOOLBAR -->
+        <section id="toolbar">
+          <h2>The edit bar &amp; toolbar</h2>
+          <p>
+            The <code>TweakTagsEditBar</code> tucks into the corner of the page. Signed out, it is
+            just a small login card. Once you sign in, it turns into a toolbar for saving, closing,
+            managing tags, and pulling up help, and you can drag it out of your way by the grip. Edit
+            a rich text tag and a little formatting toolbar pops up right above it.
+          </p>
+
+          <div class="stage">
+            <span class="tag">Live preview &middot; signed in bar</span>
+            <div class="canvas">
+              <div class="v-bar v-font">
+                <span class="v-grip" title="Drag to move"></span>
+                <span class="v-email">you@example.com</span>
+                <button class="v-btn icon" title="Help">?</button>
+                <button class="v-btn subtle">Tags</button>
+                <button class="v-btn">Save&nbsp;*</button>
+                <button class="v-btn subtle">Close</button>
+                <button class="v-btn subtle">Sign out</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="stage">
+            <span class="tag">Live preview &middot; rich text toolbar</span>
+            <div class="canvas">
+              <div class="v-toolbar v-font">
+                <button title="Bold"><strong>B</strong></button>
+                <button title="Italic"><em>I</em></button>
+                <button title="Underline"><u>U</u></button>
+                <button title="Heading">H</button>
+                <button title="Bullet list">&bull;</button>
+                <button title="Numbered list">1.</button>
+                <button title="Link">&#128279;</button>
+                <button title="Clear formatting">&#10005;</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="stage">
+            <span class="tag">Live preview &middot; login card</span>
+            <div class="canvas">
+              <div class="v-card v-font" style="width: min(30rem, 100%)">
+                <div class="head"><span class="v-grip"></span> Sign in to edit</div>
+                <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center">
+                  <input class="v-input" type="email" placeholder="email" style="flex: 1 1 9rem; min-width: 8rem; width: auto" />
+                  <input class="v-input" type="password" placeholder="password" style="flex: 1 1 9rem; min-width: 8rem; width: auto" />
+                  <button class="v-btn">Sign in</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- POPUP -->
+        <section id="popup">
+          <h2>The popup editor</h2>
+          <p>
+            Prefer a form? Set <code>editInView: false</code> and <strong>Edit page</strong> opens a
+            scrollable popup instead. It lists every tag with a labeled input, already filled in with
+            what is saved, so you can run down the list, change what you need, and save it all in one
+            go. Handy when the editable spots are fiddly to click, or when you just want to see
+            everything in one place.
+          </p>
+
+          <div class="stage">
+            <span class="tag">Live preview &middot; popup editor</span>
+            <div class="canvas" style="padding: 1.25rem">
+              <div class="v-modal v-font">
+                <div class="top">
+                  <strong>Edit content</strong>
+                  <span style="display: flex; gap: 0.5rem; align-items: center">
+                    <button class="v-btn">Save *</button>
+                    <span style="color: #fff; font-size: 1.3rem; cursor: pointer">&times;</span>
+                  </span>
+                </div>
+                <div class="body">
+                  <div class="v-row">
+                    <span class="v-mono">hero-title <span style="color: var(--muted); font-weight: 400">&middot; plain</span></span>
+                    <span class="v-label">Text content</span>
+                    <input class="v-input" value="Welcome to my site" />
+                  </div>
+                  <div class="v-row">
+                    <span class="v-mono">hero-subtitle <span style="color: var(--muted); font-weight: 400">&middot; rich</span></span>
+                    <span class="v-label">Rich text</span>
+                    <input class="v-input" value="The default text lives right here" />
+                  </div>
+                  <div class="v-row" style="border-bottom: none">
+                    <span class="v-mono">hero-image <span style="color: var(--muted); font-weight: 400">&middot; media</span></span>
+                    <span class="v-label">Media URL</span>
+                    <input class="v-input" value="https://cdn.example.com/hero.png" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ADMIN -->
+        <section id="admin">
+          <h2>The full page admin panel</h2>
+          <p>
+            If you would rather manage content away from the live site, drop
+            <code>&lt;TweakTagsAdminPanel /&gt;</code> on its own route and you get a proper dashboard:
+            a full page login, then tabs to view, create, and edit your tags. The view and edit lists
+            each come with their own search and pagination, so big sites stay easy to get around.
+          </p>
+
+          <div class="code" data-lang="tsx">
+            <div class="bar"><span>app/admin/page.tsx</span><button class="copy">Copy</button></div>
+            <pre><span class="tok-s">'use client'</span>;
+<span class="tok-k">import</span> { <span class="tok-f">TweakTagsProvider</span>, <span class="tok-f">TweakTagsAdminPanel</span> } <span class="tok-k">from</span> <span class="tok-s">'@tweaktags/next'</span>;
+
+<span class="tok-k">export default function</span> <span class="tok-f">AdminPage</span>() {
+  <span class="tok-k">return</span> (
+    &lt;<span class="tok-f">TweakTagsProvider</span> apiBasePath=<span class="tok-s">"/api/tweaktags"</span> richText&gt;
+      &lt;<span class="tok-f">TweakTagsAdminPanel</span> /&gt;
+    &lt;/<span class="tok-f">TweakTagsProvider</span>&gt;
+  );
+}</pre>
+          </div>
+
+          <div class="stage">
+            <span class="tag">Live preview &middot; admin panel</span>
+            <div class="canvas" style="padding: 1.25rem">
+              <div class="v-admin v-font">
+                <div class="top">
+                  <strong style="font-size: 1.1rem">TweakTags admin</strong>
+                  <span style="display: flex; gap: 0.6rem; align-items: center">
+                    <span style="color: var(--muted)">you@example.com</span>
+                    <button class="v-btn subtle">Sign out</button>
+                  </span>
+                </div>
+                <div class="tabs">
+                  <button class="v-btn">View tags</button>
+                  <button class="v-btn subtle">Create tag</button>
+                  <button class="v-btn subtle">Edit tags</button>
+                </div>
+                <div class="panel">
+                  <input class="v-input" type="search" placeholder="Search tags..." />
+                  <div class="v-listrow">
+                    <span class="v-mono" style="flex: 1">hero-title</span>
+                    <span class="v-badge">plain</span>
+                    <span style="color: var(--muted)">Welcome to my site</span>
+                  </div>
+                  <div class="v-listrow">
+                    <span class="v-mono" style="flex: 1">hero-image</span>
+                    <span class="v-badge">media</span>
+                    <span style="color: var(--muted)">cdn.example.com/hero.png</span>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; align-items: center">
+                    <button class="v-btn subtle">Prev</button>
+                    <span style="color: var(--muted)">Page 1 of 3</span>
+                    <button class="v-btn subtle">Next</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <h3>Theming and custom CSS</h3>
+          <p>
+            Out of the box the panel wears a dark look with a vibrant blue accent. Want your own
+            colors? Pass a <code>theme</code> with any of the tokens below. Need to go further? Pass
+            <code>styles</code> to restyle individual parts with your own CSS. Skip anything you do
+            not care about and it keeps our default, so you only write the bits you actually want to
+            change. There is also a <code>className</code> on the root if you would rather reach for a
+            stylesheet.
+          </p>
+          <div class="code" data-lang="tsx">
+            <div class="bar"><span>app/admin/page.tsx</span><button class="copy">Copy</button></div>
+            <pre>&lt;<span class="tok-f">TweakTagsAdminPanel</span>
+  <span class="tok-c">// recolor everything from a few tokens</span>
+  theme={{ primary: <span class="tok-s">'#16a34a'</span>, bg: <span class="tok-s">'#0b0f0c'</span> }}
+  <span class="tok-c">// override just the parts you want, the rest stay default</span>
+  styles={{
+    card: { borderRadius: <span class="tok-s">'1rem'</span> },
+    button: { textTransform: <span class="tok-s">'uppercase'</span> },
+  }}
+  className=<span class="tok-s">"my-admin"</span>
+/&gt;</pre>
+          </div>
+          <p>
+            <strong>Theme tokens:</strong> <code>bg</code>, <code>surface</code>,
+            <code>surfaceRaised</code>, <code>border</code>, <code>text</code>, <code>muted</code>,
+            <code>primary</code>, <code>primaryHover</code>, <code>danger</code>, <code>font</code>.
+          </p>
+          <p>
+            <strong>Style parts:</strong> <code>page</code>, <code>loginCard</code>,
+            <code>shell</code>, <code>topbar</code>, <code>nav</code>, <code>card</code>,
+            <code>input</code>, <code>button</code>, <code>subtleButton</code>,
+            <code>dangerButton</code>, <code>label</code>, <code>listRow</code>, <code>badge</code>.
+          </p>
+        </section>
+
+        <!-- VANILLA -->
+        <section id="vanilla">
+          <h2>No framework? No problem.</h2>
+          <p>
+            React is optional. <code>@tweaktags/vanillajs</code> gives you the same thing on any
+            site: the draggable, mobile friendly edit bar, the popup editor, and the full admin
+            panel, all in plain JavaScript. The backend is set up exactly the same way, only the
+            browser side changes.
+          </p>
+
+          <h3>Drop in a script tag</h3>
+          <p>
+            The quickest way is a CDN script. It is one self contained file that also injects its own
+            styles, so this is the whole browser side, no build step:
+          </p>
+          <div class="code" data-lang="html">
+            <div class="bar"><span>index.html</span><button class="copy">Copy</button></div>
+            <pre>&lt;<span class="tok-f">script</span> src=<span class="tok-s">"https://cdn.jsdelivr.net/npm/@tweaktags/vanillajs@1.0.0/dist/index.global.js"</span>&gt;&lt;/<span class="tok-f">script</span>&gt;
+&lt;<span class="tok-f">script</span>&gt;
+  <span class="tok-f">TweakTags</span>.<span class="tok-f">init</span>({ apiBasePath: <span class="tok-s">'/api/tweaktags'</span> });
+&lt;/<span class="tok-f">script</span>&gt;</pre>
+          </div>
+          <p>
+            unpkg works too, and its short form resolves to the script build for you:
+            <code>https://unpkg.com/@tweaktags/vanillajs@1.0.0</code>. The CDN link is automatic once
+            the package is on npm, nothing to set up. Pin a version like <code>@1.0.0</code> instead
+            of the latest so a release cannot change your site by surprise, and put the tag before
+            <code>&lt;/body&gt;</code> or add <code>defer</code> so the page is ready before it runs.
+          </p>
+
+          <h3>Or install it with npm</h3>
+          <div class="code" data-lang="js">
+            <div class="bar"><span>your bundle</span><button class="copy">Copy</button></div>
+            <pre><span class="tok-c">// npm install @tweaktags/vanillajs</span>
+<span class="tok-k">import</span> { <span class="tok-f">init</span> } <span class="tok-k">from</span> <span class="tok-s">'@tweaktags/vanillajs'</span>;
+
+<span class="tok-f">init</span>({ apiBasePath: <span class="tok-s">'/api/tweaktags'</span>, richText: <span class="tok-k">true</span>, theme: { primary: <span class="tok-s">'#16a34a'</span> } });</pre>
+          </div>
+
+          <p>
+            Mark content the same way, with <code>data-tweaktags-{tag}</code> attributes. Pass a
+            <code>theme</code> to recolor everything, or a <code>css</code> string for finer control.
+            For the full page dashboard on its own route, call
+            <code>TweakTags.mountAdmin('#admin', { apiBasePath: '/api/tweaktags' })</code> instead of
+            <code>init</code>.
+          </p>
+        </section>
+
+        <!-- DATABASES -->
+        <section id="databases">
+          <h2>Databases</h2>
+          <p>
+            Postgres comes bundled with the server, so it needs nothing extra. For anything else,
+            add the matching adapter package and point your config at it. Either way,
+            <code>migrate</code> and <code>create-superuser</code> behave exactly the same, so you can
+            switch databases without relearning anything.
+          </p>
+          <table>
+            <thead>
+              <tr>
+                <th>Database</th>
+                <th>Provider</th>
+                <th>Extra package</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Postgres</td>
+                <td><code>postgres</code></td>
+                <td>None, built in</td>
+              </tr>
+              <tr>
+                <td>MySQL</td>
+                <td><code>mysql</code></td>
+                <td><code>@tweaktags/db-mysql</code></td>
+              </tr>
+              <tr>
+                <td>MariaDB</td>
+                <td><code>mariadb</code></td>
+                <td><code>@tweaktags/db-mariadb</code></td>
+              </tr>
+              <tr>
+                <td>SQLite</td>
+                <td><code>sqlite</code></td>
+                <td><code>@tweaktags/db-sqlite</code></td>
+              </tr>
+            </tbody>
+          </table>
+          <p>
+            TweakTags owns a small set of tables that all start with <code>__TweakTags__</code>, so they
+            never clash with your own tables.
+          </p>
+        </section>
+
+        <!-- CLI -->
+        <section id="cli">
+          <h2>CLI commands</h2>
+          <p>Run these from the root of your app. Each one reads the same <code>tweaktags.config</code>.</p>
+          <table>
+            <thead>
+              <tr>
+                <th>Command</th>
+                <th>What it does</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>tweaktags migrate</code></td>
+                <td>Creates or updates the database tables.</td>
+              </tr>
+              <tr>
+                <td><code>tweaktags create-superuser --email E --password P</code></td>
+                <td>Creates an admin who can create, retype, and delete tags.</td>
+              </tr>
+              <tr>
+                <td><code>tweaktags create-user --email E --password P</code></td>
+                <td>Creates a regular editor who can only change existing content.</td>
+              </tr>
+              <tr>
+                <td><code>tweaktags update-password --email E --password P</code></td>
+                <td>Sets a new password for an existing user.</td>
+              </tr>
+              <tr>
+                <td><code>tweaktags list-tags</code></td>
+                <td>Lists every tag in the database.</td>
+              </tr>
+              <tr>
+                <td><code>tweaktags list-users</code></td>
+                <td>Lists every user and their role.</td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+
+        <!-- TENANTS -->
+        <section id="tenants">
+          <h2>Multi-tenant: one database, many sites</h2>
+          <p>
+            You can run several sites from a single TweakTags database. Each site is a
+            <strong>tenant</strong>, and a tag belongs to a tenant, so a site only ever sees and
+            edits its own tags. The best part: <strong>the tenant is decided by the server, never by
+            the browser</strong>, so a visitor can never pick or fake one.
+          </p>
+
+          <h3>One config per site</h3>
+          <p>If each site has its own deployment, give each one a <code>tenant</code>:</p>
+          <div class="code" data-lang="ts">
+            <div class="bar"><span>drystrip's tweaktags.config.ts</span><button class="copy">Copy</button></div>
+            <pre><span class="tok-k">export default</span> <span class="tok-f">defineConfig</span>({
+  tenant: <span class="tok-s">'drystrip'</span>,
+  database: { provider: <span class="tok-s">'postgres'</span>, connectionString: process.env.<span class="tok-f">DATABASE_URL</span> }, <span class="tok-c">// shared</span>
+  auth: { provider: <span class="tok-s">'jwt'</span>, jwtSecret: process.env.<span class="tok-f">TWEAKTAGS_JWT_SECRET</span> },
+});</pre>
+          </div>
+          <p>
+            Now <code>hero-title</code> on drystrip is a different tag from <code>hero-title</code> on
+            another site, and an editor signed in on drystrip can only touch drystrip's tags.
+          </p>
+
+          <h3>One server, many domains</h3>
+          <p>If a single deployment serves several domains, map the request to a tenant instead:</p>
+          <div class="code" data-lang="ts">
+            <div class="bar"><span>tweaktags.config.ts</span><button class="copy">Copy</button></div>
+            <pre><span class="tok-k">export default</span> <span class="tok-f">defineConfig</span>({
+  resolveTenant: ({ host }) =&gt; (host?.<span class="tok-f">endsWith</span>(<span class="tok-s">'drystrip.com'</span>) ? <span class="tok-s">'drystrip'</span> : <span class="tok-s">'default'</span>),
+  database: { provider: <span class="tok-s">'postgres'</span>, connectionString: process.env.<span class="tok-f">DATABASE_URL</span> },
+  auth: { provider: <span class="tok-s">'jwt'</span>, jwtSecret: process.env.<span class="tok-f">TWEAKTAGS_JWT_SECRET</span> },
+});</pre>
+          </div>
+
+          <div class="callout">
+            <strong>Good to know.</strong> Users are shared across tenants, so one superuser manages
+            every site. Nothing changes on the client. Existing single-site installs keep working as
+            the <code>default</code> tenant, and the migration backfills old rows for you.
+          </div>
+        </section>
+
+        <!-- UPLOADS -->
+        <section id="uploads">
+          <h2>Media uploads</h2>
+          <p>
+            A media tag holds an image url. By default you paste it in. Want to upload files instead?
+            Point TweakTags at an S3 bucket, or any S3 compatible store, and editors get an
+            <strong>Upload a file</strong> button next to the url box. Either works.
+          </p>
+          <p>
+            TweakTags never touches the file bytes: the server hands the browser a short lived
+            presigned url, and the file goes <strong>straight from the browser to your bucket</strong>.
+          </p>
+          <div class="code" data-lang="ts">
+            <div class="bar"><span>tweaktags.config.ts</span><button class="copy">Copy</button></div>
+            <pre><span class="tok-c">// npm install @tweaktags/storage-s3</span>
+<span class="tok-k">export default</span> <span class="tok-f">defineConfig</span>({
+  database: { <span class="tok-c">/* … */</span> },
+  auth: { <span class="tok-c">/* … */</span> },
+  storage: {
+    provider: <span class="tok-s">'s3'</span>,
+    bucket: process.env.<span class="tok-f">S3_BUCKET</span>,
+    region: process.env.<span class="tok-f">S3_REGION</span>,
+    accessKeyId: process.env.<span class="tok-f">AWS_ACCESS_KEY_ID</span>,
+    secretAccessKey: process.env.<span class="tok-f">AWS_SECRET_ACCESS_KEY</span>,
+    endpoint: process.env.<span class="tok-f">S3_ENDPOINT</span>,        <span class="tok-c">// R2 / Spaces / MinIO</span>
+    publicBaseUrl: process.env.<span class="tok-f">S3_PUBLIC_BASE_URL</span>, <span class="tok-c">// optional cdn</span>
+  },
+});</pre>
+          </div>
+          <p>
+            Then turn the button on in the client with <code>mediaUpload</code>
+            (<code>&lt;TweakTagsProvider … mediaUpload&gt;</code>, or
+            <code>TweakTags.init({ … mediaUpload: true })</code>). The one S3 adapter covers
+            <strong>S3, Cloudflare R2, DigitalOcean Spaces, Backblaze B2, and MinIO</strong>.
+          </p>
+          <div class="callout">
+            <strong>Two one-time bucket settings.</strong> Allow a <code>PUT</code> from your site's
+            origin (CORS), since the browser uploads directly, and make the uploaded files publicly
+            readable (a public prefix or a cdn with <code>publicBaseUrl</code>). Skip storage
+            entirely and media still works, you just paste urls. Uploads are namespaced per tenant.
+          </div>
+        </section>
+
+        <!-- SECURITY -->
+        <section id="security">
+          <h2>Security</h2>
+          <p>
+            Auth is the part you do not want to get wrong, so TweakTags handles the fiddly bits for
+            you, right out of the box:
+          </p>
+          <ul style="max-width: 46rem; color: var(--muted)">
+            <li>Passwords are hashed with bcrypt before they are stored.</li>
+            <li>
+              Short lived <strong>access tokens</strong> and longer <strong>refresh tokens</strong>,
+              both with configurable expirations. When the refresh token expires, the user is signed
+              out and logs back in.
+            </li>
+            <li>
+              Refresh tokens rotate on every use, and reuse of an old token revokes the whole session
+              family, which stops stolen tokens.
+            </li>
+            <li>
+              Tokens are stored in secure <strong>httpOnly cookies</strong> by default, with a double
+              submit <strong>CSRF</strong> check on every action that changes data. You can turn CSRF
+              off with one config flag if it gets in your way.
+            </li>
+            <li>
+              Two roles: a <strong>superuser</strong> manages tags, an <strong>editor</strong> can
+              only change content for tags that already exist. Saved content is checked for SQL
+              injection and dangerous HTML.
+            </li>
+          </ul>
+          <div class="code" data-lang="ts">
+            <div class="bar"><span>tweaktags.config.ts &middot; auth options</span><button class="copy">Copy</button></div>
+            <pre>auth: {
+  provider: <span class="tok-s">'jwt'</span>,
+  jwtSecret: process.env.<span class="tok-f">TWEAKTAGS_JWT_SECRET</span>,
+  accessTtlSeconds: <span class="tok-f">60</span> * <span class="tok-f">15</span>,        <span class="tok-c">// 15 minutes</span>
+  refreshTtlSeconds: <span class="tok-f">60</span> * <span class="tok-f">60</span> * <span class="tok-f">24</span> * <span class="tok-f">7</span>, <span class="tok-c">// 7 days</span>
+  tokenStorage: <span class="tok-s">'cookie'</span>,       <span class="tok-c">// or 'header' for a separate origin app</span>
+  csrfProtection: <span class="tok-k">true</span>,
+  strictRevocation: <span class="tok-k">true</span>,       <span class="tok-c">// reject access tokens the moment a session is revoked</span>
+}</pre>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <footer>
+      TweakTags is open source under the MIT License. Built by Scarlett A. Scott (codescarlett).
+    </footer>
+
+    <script>
+      //Copy buttons for the code blocks.
+      document.querySelectorAll('.code .copy').forEach((button) => {
+        button.addEventListener('click', () => {
+          const pre = button.closest('.code').querySelector('pre');
+          navigator.clipboard.writeText(pre.innerText).then(() => {
+            const original = button.textContent;
+            button.textContent = 'Copied';
+            setTimeout(() => {
+              button.textContent = original;
+            }, 1500);
+          });
+        });
+      });
+
+      //Highlight the nav link for the section currently in view.
+      const links = new Map();
+      document.querySelectorAll('nav.side a').forEach((link) => {
+        const id = link.getAttribute('href').slice(1);
+        links.set(id, link);
+      });
+
+      const observer = new IntersectionObserver(
+        (entries) => {
+          entries.forEach((entry) => {
+            if (entry.isIntersecting) {
+              links.forEach((link) => link.classList.remove('active'));
+              const active = links.get(entry.target.id);
+              if (active) {
+                active.classList.add('active');
+              }
+            }
+          });
+        },
+        { rootMargin: '-20% 0px -70% 0px' },
+      );
+
+      document.querySelectorAll('main section').forEach((section) => observer.observe(section));
+    </script>
+  </body>
+</html>
