@@ -33,5 +33,17 @@
     "tsup": "^8.3.5",
     "typescript": "^5.6.3"
   },
-  "author": "Scarlett A. Scott (codescarlett)"
+  "author": "Scarlett A. Scott (codescarlett)",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/scarlettiron/tweaktags.git",
+    "directory": "packages/browser"
+  },
+  "homepage": "https://scarlettiron.github.io/tweaktags",
+  "bugs": {
+    "url": "https://github.com/scarlettiron/tweaktags/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
 }

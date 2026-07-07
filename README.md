@@ -393,12 +393,29 @@ export default function HomePage() {
       <h1 data-tweaktags-hero-title>Welcome to my site</h1>
       <p data-tweaktags-hero-body>This text can be edited right on the page.</p>
 
-      {/* On an image, TweakTags sets the src from the saved content. */}
+      {/* On an image, a media tag sets the src from the saved url. */}
       <img data-tweaktags-hero-image src="/placeholder.png" alt="Hero" />
+
+      {/* On a container, a media tag sets the url as a cover background image.
+          Give it a size, since a background image has none on its own. */}
+      <div data-tweaktags-hero-banner style={{ height: 320 }} />
     </main>
   );
 }
 ```
+
+**Image and media tags.** A tag whose type is **media** holds an image url instead of text. Put the
+attribute on whatever element should show the image:
+
+- On an `<img>` (or anything with a `src`, like a `<video>`), TweakTags sets the `src`.
+- On a container like a `<div>`, it sets the url as a **cover background image**. Give that element
+  a height or aspect ratio in your own CSS, since a background image does not size the element.
+
+To set a media tag's image, an editor either **pastes an image url** or, if you have turned on
+[media uploads](#media-uploads), clicks **Upload a file**. Either way it ends up as the saved url.
+Media tags are edited through the Tags panel, the popup editor, or the admin panel, not by typing on
+the page. Tag types (plain, rich, media) need `richText` turned on, so add `richText` to your
+provider to create media tags.
 
 A few things worth knowing:
 

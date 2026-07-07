@@ -2,9 +2,16 @@ packages:
   - 'packages/*'
   - 'examples/*'
 
-# Allow only these dependencies to run their install build scripts.
-# esbuild needs this so tsup can build the packages. better-sqlite3 needs it so
-# its native binding is available for the SQLite adapter and its tests.
+# Dependencies allowed to run their install build scripts. pnpm 11.9 enforces
+# this through the allowBuilds map, so without it a frozen install in CI fails
+# with ERR_PNPM_IGNORED_BUILDS. esbuild needs to build so tsup can bundle the
+# packages, and better-sqlite3 needs to build its native binding for the SQLite
+# adapter and its tests. onlyBuiltDependencies is the older key kept for tooling
+# on pnpm 10 and is otherwise ignored on 11.9.
+allowBuilds:
+  better-sqlite3: true
+  esbuild: true
+
 onlyBuiltDependencies:
   - esbuild
   - better-sqlite3
