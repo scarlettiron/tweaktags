@@ -520,7 +520,7 @@ const HelpPanel = ({
     </HelpItem>
 
     <HelpItem title="Close the editor">
-      Click Close to leave edit mode. If you have changes you have not saved, TweakTags warns you first
+      Click Close to leave edit mode. If you have changes you have not saved, you are warned first
       so nothing is lost by accident.
     </HelpItem>
 

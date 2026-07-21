@@ -207,6 +207,11 @@ export interface TweakTagsUserConfig {
   editInView?: boolean;
   //Turns on the rich text editor and lets tags be created with a type.
   richText?: boolean;
+
+  //When true, no TweakTags branding shows anywhere in the UI, including the
+  //admin panel, so the editor carries your own name instead. Defaults to false.
+  //The client packages take the same option, so set it in both places.
+  whiteLabel?: boolean;
   apiBasePath?: string;
   database: DatabaseConfig;
   auth: AuthConfig;
@@ -231,6 +236,7 @@ export interface TweakTagsConfig {
   mode: 'embedded' | 'standalone';
   editInView: boolean;
   richText: boolean;
+  whiteLabel: boolean;
   apiBasePath: string;
   database: DatabaseConfig;
   auth: ResolvedAuthConfig;

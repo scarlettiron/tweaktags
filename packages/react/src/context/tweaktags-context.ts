@@ -31,6 +31,9 @@ export interface TweakTagsContextValue {
   //Whether the media upload button is turned on.
   mediaUpload: boolean;
 
+  //Whether all TweakTags branding is hidden from the UI.
+  whiteLabel: boolean;
+
   //Whether the current user is allowed to edit.
   canEdit: boolean;
 

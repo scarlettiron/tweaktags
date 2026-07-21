@@ -353,7 +353,7 @@ const previewOf = (record: ContentRecord | null): string => {
 //The full page login shown when nobody is signed in.
 const AdminLogin = (): ReactElement => {
   const s = useStyles();
-  const { login } = useTweakTags();
+  const { login, whiteLabel } = useTweakTags();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -390,7 +390,7 @@ const AdminLogin = (): ReactElement => {
           void handleLogin();
         }}
       >
-        <strong style={{ fontSize: '1.25rem' }}>TweakTags admin</strong>
+        <strong style={{ fontSize: '1.25rem' }}>{whiteLabel ? 'Admin' : 'TweakTags admin'}</strong>
         <span style={{ opacity: 0.7 }}>Sign in to manage your content.</span>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
@@ -822,7 +822,7 @@ const EditTab = ({
 //lets the user move between viewing, creating, and editing tags.
 const AdminDashboard = (): ReactElement => {
   const s = useStyles();
-  const { user, logout, listTags, loadContent, notify } = useTweakTags();
+  const { user, logout, listTags, loadContent, notify, whiteLabel } = useTweakTags();
 
   const isSuperuser = user?.role === ROLES.SUPERUSER;
 
@@ -867,7 +867,7 @@ const AdminDashboard = (): ReactElement => {
     <div style={s.page}>
       <div style={s.shell}>
         <div style={s.topbar}>
-          <strong style={{ fontSize: '1.3rem' }}>TweakTags admin</strong>
+          <strong style={{ fontSize: '1.3rem' }}>{whiteLabel ? 'Admin' : 'TweakTags admin'}</strong>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
             <span style={{ opacity: 0.7 }}>{user?.email}</span>

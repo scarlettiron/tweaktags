@@ -74,6 +74,7 @@ export const resolveConfig = (input: TweakTagsUserConfig): TweakTagsConfig => {
     mode: input.mode ?? DEFAULT_MODE,
     editInView: input.editInView ?? DEFAULT_EDIT_IN_VIEW,
     richText: input.richText ?? false,
+    whiteLabel: input.whiteLabel ?? false,
     apiBasePath: input.apiBasePath ?? DEFAULT_API_BASE_PATH,
     database: input.database,
     auth: {

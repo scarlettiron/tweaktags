@@ -23,6 +23,10 @@ export interface EngineOptions {
   //to be pasted in but shows no upload button.
   mediaUpload?: boolean;
 
+  //When true, no TweakTags branding shows anywhere in the UI, including the
+  //admin panel. Use it to ship the editor under your own name. Defaults to false.
+  whiteLabel?: boolean;
+
   //How the login token is kept. 'cookie' relies on a secure httpOnly cookie set
   //by the server. 'header' keeps the token in the browser and sends it as a
   //bearer header. Must match your server config. Defaults to 'cookie'.
@@ -41,6 +45,7 @@ export interface EngineState {
   editInView: boolean;
   richText: boolean;
   mediaUpload: boolean;
+  whiteLabel: boolean;
   hasUnsavedChanges: boolean;
 }
 

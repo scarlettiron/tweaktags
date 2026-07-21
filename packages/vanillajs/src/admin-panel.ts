@@ -544,7 +544,10 @@ export const mountAdminPanel = (
     };
 
     const form = el('form', { class: 'tt-login-card' }, [
-      el('strong', { style: { fontSize: '1.25rem' }, text: 'TweakTags admin' }),
+      el('strong', {
+        style: { fontSize: '1.25rem' },
+        text: engine.whiteLabel ? 'Admin' : 'TweakTags admin',
+      }),
       el('span', { style: { opacity: '0.7' }, text: 'Sign in to manage your content.' }),
       el('div', { class: 'tt-field' }, [el('label', { class: 'tt-label', text: 'Email' }), email]),
       el('div', { class: 'tt-field' }, [el('label', { class: 'tt-label', text: 'Password' }), password]),
@@ -564,7 +567,10 @@ export const mountAdminPanel = (
     clear(container);
 
     const topbar = el('div', { class: 'tt-admin-top' }, [
-      el('strong', { style: { fontSize: '1.3rem' }, text: 'TweakTags admin' }),
+      el('strong', {
+        style: { fontSize: '1.3rem' },
+        text: engine.whiteLabel ? 'Admin' : 'TweakTags admin',
+      }),
       el('div', { style: { display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' } }, [
         el('span', { style: { opacity: '0.7' }, text: engine.user?.email ?? '' }),
         el('button', { class: 'tt-btn tt-subtle', type: 'button', text: 'Sign out', onclick: () => void engine.logout() }),

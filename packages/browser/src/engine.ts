@@ -53,6 +53,7 @@ export class TweakTagsEngine {
   private readonly _editInView: boolean;
   private readonly _richText: boolean;
   private readonly _mediaUpload: boolean;
+  private readonly _whiteLabel: boolean;
 
   private _user: AuthUser | null = null;
   private _isEditing = false;
@@ -110,6 +111,7 @@ export class TweakTagsEngine {
     this._editInView = options.editInView ?? true;
     this._richText = options.richText ?? false;
     this._mediaUpload = options.mediaUpload ?? false;
+    this._whiteLabel = options.whiteLabel ?? false;
     this.tokenStorage = options.tokenStorage ?? 'cookie';
     this.csrfCookieName = options.csrfCookieName ?? 'tweaktags_csrf';
 
@@ -143,6 +145,10 @@ export class TweakTagsEngine {
     return this._richText;
   }
 
+  public get whiteLabel(): boolean {
+    return this._whiteLabel;
+  }
+
   public get mediaUpload(): boolean {
     return this._mediaUpload;
   }
@@ -164,6 +170,7 @@ export class TweakTagsEngine {
       editInView: this._editInView,
       richText: this._richText,
       mediaUpload: this._mediaUpload,
+      whiteLabel: this._whiteLabel,
       hasUnsavedChanges: this._hasUnsavedChanges,
     };
   }
