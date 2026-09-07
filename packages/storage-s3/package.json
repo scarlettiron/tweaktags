@@ -1,7 +1,26 @@
 {
   "name": "@tweaktags/storage-s3",
-  "version": "1.0.0",
-  "description": "S3 and S3 compatible media storage adapter for TweakTags, using presigned uploads",
+  "version": "1.2.0",
+  "description": "Media uploads to S3 or any S3 compatible store for TweakTags, the inline CMS for React and Next.js. Uses short lived presigned uploads.",
+  "keywords": [
+    "tweaktags",
+    "tweak-tags",
+    "cms",
+    "inline-cms",
+    "content-management",
+    "inline-editing",
+    "in-place-editing",
+    "editable-content",
+    "typescript",
+    "scarlett scott",
+    "scarlettiron",
+    "s3",
+    "storage",
+    "uploads",
+    "presigned-url",
+    "image-upload",
+    "media"
+  ],
   "license": "MIT",
   "type": "module",
   "engines": {
@@ -15,9 +34,14 @@
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
     }
   },
   "scripts": {
@@ -35,7 +59,10 @@
     "tsup": "^8.3.5",
     "typescript": "^5.6.3"
   },
-  "author": "Scarlett A. Scott (codescarlett)",
+  "author": {
+    "name": "Scarlett A. Scott",
+    "url": "https://github.com/scarlettiron"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/scarlettiron/tweaktags.git",

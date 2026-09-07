@@ -21,26 +21,56 @@ interface Entry {
   record: ContentRecord | null;
 }
 
-//Turns a saved record into a short one line preview for the view list.
-const previewOf = (record: ContentRecord | null): string => {
-  if (!record) {
-    return 'No content yet';
+//Content longer than this collapses behind a show more toggle, so one long tag
+//cannot push the rest of the list off the screen.
+const CLAMP_AFTER = 220;
+
+//Shows the saved content of a tag so it can be read before the editor is opened.
+//Media shows the file itself, rich text renders the way it does on the page, and
+//long text collapses to a few lines with a toggle.
+const buildPreview = (entry: Entry): HTMLElement => {
+  const record = entry.record;
+
+  if (entry.type === 'media') {
+    const url = record?.mediaUrl ?? record?.body ?? '';
+
+    if (url === '') {
+      return el('span', { class: 'tt-hint', text: 'No media set' });
+    }
+
+    return el('div', { class: 'tt-preview' }, [
+      el('img', { class: 'tt-preview-media', src: url, alt: '' }),
+      el('span', { class: 'tt-preview-url tt-mono', text: url }),
+    ]);
   }
 
-  if (record.type === 'media') {
-    return record.mediaUrl || record.body || 'No media set';
+  const body = record?.body ?? '';
+
+  if (body.trim() === '') {
+    return el('span', { class: 'tt-hint', text: record ? 'Empty' : 'No content yet' });
   }
 
-  const text = record.body
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
+  //Rich content is saved as html, and the page renders it the same way.
+  const content =
+    entry.type === 'rich'
+      ? el('div', { class: 'tt-preview-body tt-preview-rich', html: body })
+      : el('div', { class: 'tt-preview-body tt-preview-text', text: body });
 
-  if (text === '') {
-    return 'Empty';
+  const kids: Child[] = [content];
+
+  if (body.length > CLAMP_AFTER) {
+    content.classList.add('tt-clamped');
+
+    const toggle = el('button', { class: 'tt-preview-more', type: 'button', text: 'Show more' });
+    toggle.addEventListener('click', () => {
+      const clamped = content.classList.toggle('tt-clamped');
+      toggle.textContent = clamped ? 'Show more' : 'Show less';
+    });
+
+    kids.push(toggle);
   }
 
-  return text.length > 90 ? `${text.slice(0, 90)}...` : text;
+  return el('div', { class: 'tt-preview' }, kids);
 };
 
 //The type options for a select, with the current one preselected by the caller.
@@ -132,14 +162,18 @@ export const mountAdminPanel = (
       }
 
       for (const entry of pageItems) {
-        const kids: Child[] = [el('span', { class: 'tt-mono', style: { minWidth: '8rem' }, text: entry.tag })];
+        const header: Child[] = [el('span', { class: 'tt-mono', style: { minWidth: '8rem' }, text: entry.tag })];
 
         if (engine.richText) {
-          kids.push(el('span', { class: 'tt-badge', text: entry.type }));
+          header.push(el('span', { class: 'tt-badge', text: entry.type }));
         }
 
-        kids.push(el('span', { style: { flex: '1', minWidth: '10rem', opacity: '0.75' }, text: previewOf(entry.record) }));
-        listWrap.append(el('div', { class: 'tt-listrow' }, kids));
+        listWrap.append(
+          el('div', { class: 'tt-listrow', style: { flexDirection: 'column', alignItems: 'stretch' } }, [
+            el('div', { style: { display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' } }, header),
+            el('div', { style: { marginTop: '0.5rem' } }, [buildPreview(entry)]),
+          ]),
+        );
       }
 
       if (totalPages > 1) {
@@ -299,6 +333,10 @@ export const mountAdminPanel = (
 
       if (isOpen) {
         kids.push(buildEditor(entry));
+      } else {
+        //Closed rows show the saved content, so a tag can be read before it is
+        //opened for editing.
+        kids.push(el('div', { style: { marginTop: '0.6rem' } }, [buildPreview(entry)]));
       }
 
       return el('div', { class: 'tt-listrow', style: { flexDirection: 'column', alignItems: 'stretch' } }, kids);

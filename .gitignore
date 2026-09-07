@@ -12,3 +12,5 @@ coverage/
 .claude
 plans
 dev
+publish.txt
+CHANGELOG.md

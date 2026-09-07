@@ -5,12 +5,13 @@
 //Contributors:
 //Scarlett A. Scott (codescarlett)
 
-import { ACTIONS, DEFAULT_TENANT, ROLES, TAG_TYPES } from '../constants/index.js';
+import { ACTIONS, DEFAULT_TENANT, ERROR_CODES, ROLES, TAG_TYPES } from '../constants/index.js';
 import type { AuthAdapter } from '../adapters/auth-adapter.js';
 import type { DbAdapter } from '../adapters/db-adapter.js';
 import type { StorageAdapter } from '../adapters/storage-adapter.js';
 import type {
   Actor,
+  Logger,
   TagType,
   TweakTagsConfig,
   TweakTagsRequest,
@@ -22,6 +23,8 @@ import {
   forbidden,
   unauthorized,
 } from '../utilities/errors.js';
+import { createDefaultLogger, isProduction, newTraceId, toLoggedError } from '../utilities/logger.js';
+import { diagnoseFailure } from '../utilities/diagnose.js';
 import { optionalString, requireString, requireStringArray } from '../utilities/validation.js';
 import { assertValidTag } from '../utilities/tag.js';
 import { assertNoDangerousHtml, assertSafeInput } from '../utilities/safety.js';
@@ -69,21 +72,73 @@ const uploadId = (): string => `${Date.now().toString(36)}${Math.random().toStri
 //A function that takes a normalized request and returns a normalized response.
 export type TweakTagsHandler = (request: TweakTagsRequest) => Promise<TweakTagsResponse>;
 
-//Turns any thrown value into a clean response.
-//Known TweakTags errors keep their status and code, anything else becomes a 500.
-const toErrorResponse = (error: unknown): TweakTagsResponse => {
+//What the caller needs to log one failed request and tie it back to a report.
+interface FailureContext {
+  traceId: string;
+  action: string;
+  tenant: string;
+  durationMs: number;
+  logger: Logger;
+}
+
+//Turns any thrown value into a clean response, and leaves a trace behind.
+//
+//A TweakTagsError is something the caller did, like a bad tag name or a missing
+//login. Its message is written for the person using the editor, so it goes back
+//as it is and is logged as a warning.
+//
+//Anything else is the server or its database falling over. The real message can
+//name internals, so in production the caller gets a generic line and the trace
+//id, while the log keeps the message, the stack, and a hint about what usually
+//causes this failure. In development the message comes back too, since whoever
+//sees it is the person who can fix it.
+const toErrorResponse = (error: unknown, context: FailureContext): TweakTagsResponse => {
+  const { traceId, action, tenant, durationMs, logger } = context;
+
   if (error instanceof TweakTagsError) {
+    logger({
+      level: 'warn',
+      event: 'request.rejected',
+      message: error.message,
+      traceId,
+      action,
+      tenant,
+      status: error.status,
+      code: error.code,
+      durationMs,
+    });
+
     return {
       status: error.status,
-      body: { error: error.code, message: error.message },
+      body: { error: error.code, message: error.message, traceId },
     };
   }
 
-  const message = error instanceof Error ? error.message : 'Unknown error';
+  const detail = error instanceof Error ? error.message : 'Unknown error';
+  const diagnosis = diagnoseFailure(error);
+
+  logger({
+    level: 'error',
+    event: 'request.failed',
+    message: detail,
+    traceId,
+    action,
+    tenant,
+    status: 500,
+    code: ERROR_CODES.INTERNAL,
+    durationMs,
+    reason: diagnosis.reason,
+    hint: diagnosis.hint,
+    error: toLoggedError(error),
+  });
+
+  const message = isProduction()
+    ? `Something went wrong on the server. Trace id: ${traceId}`
+    : `${detail} (trace id: ${traceId})`;
 
   return {
     status: 500,
-    body: { error: 'internal_error', message },
+    body: { error: 'internal_error', message, traceId },
   };
 };
 
@@ -91,6 +146,10 @@ const toErrorResponse = (error: unknown): TweakTagsResponse => {
 //This is where the auth and role rules live.
 export const createHandler = (deps: HandlerDependencies): TweakTagsHandler => {
   const { db, auth } = deps;
+
+  //resolveConfig fills this in, but a hand built config may not have, and a
+  //failure with nowhere to go is exactly what we are trying to fix here.
+  const logger = deps.config.logger ?? createDefaultLogger();
 
   //The tenant is set by the server from the config, never by the client, so
   //scoping cannot be spoofed. It falls back to the config default, then to the
@@ -289,8 +348,12 @@ export const createHandler = (deps: HandlerDependencies): TweakTagsHandler => {
     };
   };
 
-  //Routes each action to the function that handles it.
+  //Routes each action to the function that handles it. Every request carries a
+  //trace id, so a failure the caller reports can be found in the log.
   return async (request: TweakTagsRequest): Promise<TweakTagsResponse> => {
+    const traceId = newTraceId();
+    const startedAt = Date.now();
+
     try {
       switch (request.action) {
         case ACTIONS.LOGIN:
@@ -330,7 +393,13 @@ export const createHandler = (deps: HandlerDependencies): TweakTagsHandler => {
           throw badRequest(`Unknown action "${String(request.action)}"`);
       }
     } catch (error) {
-      return toErrorResponse(error);
+      return toErrorResponse(error, {
+        traceId,
+        action: String(request.action),
+        tenant: tenantOf(request),
+        durationMs: Date.now() - startedAt,
+        logger,
+      });
     }
   };
 };

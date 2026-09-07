@@ -29,3 +29,7 @@ export { assertNoSqlInjection, assertNoDangerousHtml, assertSafeInput } from './
 export { CSRF_HEADER, requiresCsrf } from './csrf.js';
 
 export { resolveTenant, assertValidTenant } from './tenant.js';
+
+export { createDefaultLogger, newTraceId, toLoggedError } from './logger.js';
+
+export { diagnoseFailure } from './diagnose.js';

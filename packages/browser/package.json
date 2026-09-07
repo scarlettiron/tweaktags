@@ -1,7 +1,31 @@
 {
   "name": "@tweaktags/browser",
-  "version": "1.0.0",
-  "description": "Framework agnostic browser engine for TweakTags, the crawler, session, and editing runtime",
+  "version": "1.2.0",
+  "description": "Browser engine for TweakTags, the inline CMS for React, Next.js, and vanilla JavaScript. The framework agnostic page crawler, session, and in place editing runtime.",
+  "keywords": [
+    "tweaktags",
+    "tweak-tags",
+    "cms",
+    "inline-cms",
+    "content-management",
+    "inline-editing",
+    "in-place-editing",
+    "editable-content",
+    "typescript",
+    "scarlett scott",
+    "scarlettiron",
+    "visual-editor",
+    "website-editor",
+    "page-editor",
+    "wysiwyg",
+    "rich-text-editor",
+    "static-site",
+    "browser",
+    "engine",
+    "runtime",
+    "dom",
+    "vanilla-js"
+  ],
   "license": "MIT",
   "type": "module",
   "engines": {
@@ -15,9 +39,14 @@
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
     }
   },
   "scripts": {
@@ -33,7 +62,10 @@
     "tsup": "^8.3.5",
     "typescript": "^5.6.3"
   },
-  "author": "Scarlett A. Scott (codescarlett)",
+  "author": {
+    "name": "Scarlett A. Scott",
+    "url": "https://github.com/scarlettiron"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/scarlettiron/tweaktags.git",

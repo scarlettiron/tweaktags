@@ -1,7 +1,24 @@
 {
   "name": "@tweaktags/db-mariadb",
-  "version": "1.0.0",
-  "description": "MariaDB database adapter for TweakTags. A thin package that installs and re-exports @tweaktags/db-mysql, since MariaDB speaks the MySQL protocol.",
+  "version": "1.2.0",
+  "description": "MariaDB database adapter for TweakTags, the inline CMS for React, Next.js, and vanilla JavaScript. Installs and re-exports @tweaktags/db-mysql, since MariaDB speaks the MySQL protocol.",
+  "keywords": [
+    "tweaktags",
+    "tweak-tags",
+    "cms",
+    "inline-cms",
+    "content-management",
+    "inline-editing",
+    "in-place-editing",
+    "editable-content",
+    "typescript",
+    "scarlett scott",
+    "scarlettiron",
+    "mariadb",
+    "mysql",
+    "database",
+    "database-adapter"
+  ],
   "license": "MIT",
   "type": "module",
   "engines": {
@@ -15,9 +32,14 @@
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
     }
   },
   "scripts": {
@@ -33,7 +55,10 @@
     "tsup": "^8.3.5",
     "typescript": "^5.6.3"
   },
-  "author": "Scarlett A. Scott (codescarlett)",
+  "author": {
+    "name": "Scarlett A. Scott",
+    "url": "https://github.com/scarlettiron"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/scarlettiron/tweaktags.git",

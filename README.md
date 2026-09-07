@@ -2,6 +2,8 @@
 
 **Documentation website: [scarlettiron.github.io/tweaktags](https://scarlettiron.github.io/tweaktags/)**
 
+Built and maintained by [Scarlett A. Scott (@scarlettiron)](https://github.com/scarlettiron).
+
 TweakTags is a lightweight way to make the text and images on your website editable, right on the
 page, without a separate admin dashboard. You mark the parts you want to edit, sign in, flip on
 edit mode, change the content in place, and it saves to your database.
@@ -99,6 +101,9 @@ This is why the browser never needs your database password. Only the server side
 You need these things ready first.
 
 - **Node.js version 16 or newer.** Check your version by running `node --version` in a terminal.
+- **TypeScript 4.5 or newer**, if your app uses TypeScript. Check with `npx tsc --version`. Older
+  versions cannot read the type declarations TweakTags ships. TypeScript is optional: everything
+  works from plain JavaScript too.
 - **A Next.js app** to add TweakTags to. If you do not have one yet, create one with
   `npx create-next-app@latest` and choose the App Router and TypeScript when it asks.
 - **A Postgres database.** Step 2 shows the easiest way to get one if you do not have one.
@@ -318,6 +323,11 @@ your site.
    loading spinner shows while the content is fetched. This is handy when the editable spots are
    hard to click on the page, or when you want to edit many tags at once.
 
+   Because the popup covers your page, a tag with nothing saved yet shows what it currently displays
+   on the page, marked **Nothing saved yet**, so you can read what you are about to replace instead
+   of facing an empty box. Leaving that field alone saves nothing, since only fields you actually
+   edit get written. A tag that is not on the current page says so too.
+
 3. **Full page admin panel.** For a traditional admin panel on its own page, render
    `TweakTagsAdminPanel` on a dedicated route instead of the `TweakTagsEditBar`. See
    [Full page admin panel](#full-page-admin-panel) below.
@@ -369,11 +379,13 @@ Here is what you get:
 - **Navigation tabs.** Once signed in, a top bar shows your email and a sign out button, with tabs
   to switch between **View tags**, **Create tag**, and **Edit tags**. The Create tab only shows for
   superusers, since only they can create tags.
-- **View tags.** A read only list of every tag with a short preview of its content. It has a search
-  box and pages ten tags at a time.
+- **View tags.** A read only list of every tag with its saved content. Media shows the file itself,
+  rich text renders the way it does on your page, and anything long collapses behind a **Show more**
+  toggle. It has a search box and pages ten tags at a time.
 - **Create tag.** A form to add a new tag, with a type dropdown when `richText` is on.
-- **Edit tags.** A searchable list, again ten per page, where each tag opens an inline editor
-  prefilled with its saved content. Superusers can also change a tag's type or delete it here.
+- **Edit tags.** A searchable list, again ten per page. Each row shows the tag's saved content, so
+  you can read it before you open it, and clicking **Edit** swaps that preview for an inline editor
+  prefilled with the same content. Superusers can also change a tag's type or delete it here.
 
 This mode works well when your editors want a dashboard to work from, rather than editing on the
 page itself. You can use it on its own, or alongside the in place editor on your main site.
@@ -488,7 +500,8 @@ special, just edit and save.
 Click it to open a panel where you can:
 
 - Create a tag by name, with an optional starting text.
-- See the list of tags that already exist.
+- See the list of tags that already exist, each with the content it currently holds, so you can tell
+  them apart without opening anything. A media tag shows a thumbnail of its file.
 - Delete a tag. A confirm popup asks you first, because deleting a tag removes its saved content
   and cannot be undone.
 
@@ -548,12 +561,15 @@ These are the settings you can put in `tweaktags.config.ts`.
 | `auth.cookieSameSite`     | no       | `'lax'` (default), `'strict'`, or `'none'`. Use `'none'` with a separate origin app. |
 | `auth.csrfProtection`     | no       | Turns the csrf check on or off. Defaults to true. Set false only if it causes problems and you understand the risk. |
 | `editInView`              | no       | Turns the edit in place feature on. Defaults to off.             |
+| `richText`                | no       | Turns on the rich text editor and tag types (plain, rich, media). Defaults to off. |
+| `whiteLabel`              | no       | Hides every bit of TweakTags branding, including in the admin panel, so the editor carries only your name. **Defaults to on.** Set it to `false` to show the TweakTags name. Set it in your config and on the client. |
 | `apiBasePath`             | no       | Where the backend route lives. Defaults to `/api/tweaktags`.        |
 | `mode`                    | no       | `'embedded'` for adding to an existing site. This is the default. |
 | `cors.origins`            | no       | Allowed origins when the server runs separately. A list of urls, or `'*'`. |
 | `tenant`                  | no       | The site this server's tags belong to, for sharing one database across many sites. Defaults to `'default'`. See [Multi-tenant](#multi-tenant-one-database-many-sites). |
 | `resolveTenant`           | no       | A function `({ host }) => string` to pick the tenant per request, for one server that serves many domains. |
 | `storage`                 | no       | Where media uploads go. Leave it out to only allow pasted media urls. See [Media uploads](#media-uploads). |
+| `logger`                  | no       | Where server side log entries go, as `(entry) => void`. Leave it out and TweakTags writes readable lines to the console. Every failed request is logged with a trace id, the action, and a hint about what usually causes it. |
 
 ## Multi-tenant, one database, many sites
 
@@ -756,6 +772,26 @@ Run the command from the root folder of your app, the folder that has `tweaktags
 Make sure you clicked **Edit page** in the bar, and that the user you signed in with exists. Also
 check that your elements have a `data-tweaktags-` attribute with a valid tag name.
 
+**Something failed and I only got a trace id.**
+Look in your server's console output for that id. Every failure writes one line there with the
+action that failed, the full error, and, for the causes TweakTags recognises, a hint saying what
+usually goes wrong:
+
+```
+[tweaktags] ERROR request.failed trace=mtqj54hvf4av7g action=listTags status=500 code=internal_error
+  { hint: 'Nothing answered at the database host and port...', error: { ... } }
+```
+
+In development the real message comes back to the browser too. In production it does not, so that
+database details never reach a visitor, which is why the trace id is there.
+
+**"The server does not support SSL connections", or the database refuses a connection without SSL.**
+Your `ssl` setting and your connection string disagree. `ssl: true` (or `?sslmode=require` on the
+end of the connection string) asks for an encrypted connection, and a plain local database, like the
+Docker one in Step 2, does not offer one. Drop the `sslmode` parameter and leave `ssl` unset for a
+local database, and set `ssl: true` for a hosted one. TweakTags warns at startup when the two
+disagree, and explains this in the log if the connection then fails.
+
 **The secret is too short error.**
 `TWEAKTAGS_JWT_SECRET` must be at least 16 characters. Make a longer one with the command in Step 3.
 
@@ -953,6 +989,7 @@ of `init`.
 
 | Package            | Runs on  | What it does                                                          |
 | ------------------ | -------- | -------------------------------------------------------------------- |
+| `tweaktags` / `tweak-tags` | Both | The unscoped names, for anyone who types `npm install tweaktags`. Each installs and re-exports `@tweaktags/core` |
 | `@tweaktags/core`       | Both     | Shared types, the config helper and loader, the adapter interfaces, and the request handler |
 | `@tweaktags/server`     | Server   | A framework agnostic Node backend handler you mount in your own backend |
 | `@tweaktags/db-postgres` | Server  | The Postgres database adapter and migrations                        |
@@ -972,3 +1009,9 @@ of `init`.
 - The full plan for this project is in [plans/tweaktags-plan-v1.md](plans/tweaktags-plan-v1.md).
 - Code conventions for working on TweakTags itself are in [CONTRIBUTING.md](CONTRIBUTING.md).
 - A working example app is in [examples/next-app](examples/next-app).
+
+## Author
+
+TweakTags is created and maintained by
+**[Scarlett A. Scott (@scarlettiron)](https://github.com/scarlettiron)**, and published as the
+[@tweaktags](https://www.npmjs.com/org/tweaktags) packages on npm.

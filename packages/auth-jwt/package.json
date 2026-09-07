@@ -1,7 +1,26 @@
 {
   "name": "@tweaktags/auth-jwt",
-  "version": "1.0.0",
-  "description": "Email and password auth that issues JSON Web Tokens for TweakTags",
+  "version": "1.2.0",
+  "description": "Email and password authentication for TweakTags, the inline CMS for React and Next.js. Issues rotating JSON Web Tokens with bcrypt hashed passwords.",
+  "keywords": [
+    "tweaktags",
+    "tweak-tags",
+    "cms",
+    "inline-cms",
+    "content-management",
+    "inline-editing",
+    "in-place-editing",
+    "editable-content",
+    "typescript",
+    "scarlett scott",
+    "scarlettiron",
+    "auth",
+    "authentication",
+    "jwt",
+    "json-web-token",
+    "bcrypt",
+    "login"
+  ],
   "license": "MIT",
   "type": "module",
   "engines": {
@@ -15,9 +34,14 @@
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
     }
   },
   "scripts": {
@@ -38,7 +62,10 @@
     "tsup": "^8.3.5",
     "typescript": "^5.6.3"
   },
-  "author": "Scarlett A. Scott (codescarlett)",
+  "author": {
+    "name": "Scarlett A. Scott",
+    "url": "https://github.com/scarlettiron"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/scarlettiron/tweaktags.git",

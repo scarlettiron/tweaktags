@@ -2,6 +2,8 @@
 
 The full edit in place UI for plain HTML and JavaScript. No framework, no build step.
 
+Built and maintained by [Scarlett A. Scott (@scarlettiron)](https://github.com/scarlettiron).
+
 Part of **[TweakTags](https://github.com/scarlettiron/tweaktags)**, a lightweight edit in place content layer for React, Next,
 and plain HTML sites. Mark any element with a `data-tweaktags-*` attribute, and signed in editors
 change its text, rich text, or media right on the live page. Everyone else just sees the saved content.
@@ -72,11 +74,12 @@ TweakTags.init({ apiBasePath: '/api/tweaktags', theme: { accent: '#0a84ff' } });
 
 ### White label
 
-Pass `whiteLabel: true` to remove every bit of TweakTags branding from the UI, including the admin
-panel, so the editor carries only your own name:
+White label is the default, so no TweakTags branding shows anywhere in the UI, including the admin
+panel, and the editor carries only your own name. Pass `whiteLabel: false` to show the TweakTags
+name instead:
 
 ```js
-TweakTags.init({ apiBasePath: '/api/tweaktags', whiteLabel: true });
+TweakTags.init({ apiBasePath: '/api/tweaktags', whiteLabel: false });
 ```
 
 ## Links
@@ -84,6 +87,34 @@ TweakTags.init({ apiBasePath: '/api/tweaktags', whiteLabel: true });
 - **Documentation and guides:** https://scarlettiron.github.io/tweaktags/
 - **Every config setting:** [config type reference](https://github.com/scarlettiron/tweaktags/blob/main/packages/core/src/types/index.ts)
 - **Source and issues:** [github.com/scarlettiron/tweaktags](https://github.com/scarlettiron/tweaktags)
+
+## Requirements
+
+- **Node 16 or newer** to run the server side pieces.
+- **TypeScript 4.5 or newer**, if you use TypeScript. The published type declarations use inline
+  `type` modifiers on export specifiers, which 4.4 and older cannot parse. TypeScript is not
+  required: the packages work from plain JavaScript too.
+- For `moduleResolution`, anything works. `node16` and `nodenext` (TypeScript 4.7+) and `bundler`
+  (5.0+) pick up the separate ESM and CommonJS declarations; older setups resolve through the
+  `types` field and get the same API.
+
+## The rest of TweakTags
+
+Every package in the project, so you can jump straight to the piece you need:
+
+- **Start here:** [tweaktags](https://www.npmjs.com/package/tweaktags) — the front door, with a map of the whole project
+- **Documentation:** [Vanilla JavaScript guide](https://scarlettiron.github.io/tweaktags/#vanilla) on the docs site
+- **UI for your stack:** [@tweaktags/next](https://www.npmjs.com/package/@tweaktags/next) · [@tweaktags/react](https://www.npmjs.com/package/@tweaktags/react) · **@tweaktags/vanillajs** (this package)
+- **Backend:** [@tweaktags/server](https://www.npmjs.com/package/@tweaktags/server) · [@tweaktags/auth-jwt](https://www.npmjs.com/package/@tweaktags/auth-jwt) · [@tweaktags/cli](https://www.npmjs.com/package/@tweaktags/cli)
+- **Databases:** [@tweaktags/db-postgres](https://www.npmjs.com/package/@tweaktags/db-postgres) · [@tweaktags/db-mysql](https://www.npmjs.com/package/@tweaktags/db-mysql) · [@tweaktags/db-mariadb](https://www.npmjs.com/package/@tweaktags/db-mariadb) · [@tweaktags/db-sqlite](https://www.npmjs.com/package/@tweaktags/db-sqlite)
+- **Media uploads:** [@tweaktags/storage-s3](https://www.npmjs.com/package/@tweaktags/storage-s3)
+- **Internals:** [@tweaktags/core](https://www.npmjs.com/package/@tweaktags/core) · [@tweaktags/browser](https://www.npmjs.com/package/@tweaktags/browser)
+
+## Author
+
+TweakTags is created and maintained by
+**[Scarlett A. Scott (@scarlettiron)](https://github.com/scarlettiron)**, and published as the
+[@tweaktags](https://www.npmjs.com/org/tweaktags) packages on npm.
 
 ## License
 

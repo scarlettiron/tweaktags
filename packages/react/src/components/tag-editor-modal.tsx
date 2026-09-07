@@ -20,6 +20,11 @@ interface Draft {
   type: TagType;
   body: string;
   mediaUrl: string;
+
+  //Where the starting value came from: 'saved' is real saved content, 'page' is
+  //what the tag shows on the page with nothing saved yet, and 'missing' is a tag
+  //with nothing saved that is not on this page either.
+  source: 'saved' | 'page' | 'missing';
 }
 
 //A themed scrollbar for the scrolling body, matching the rest of TweakTags.
@@ -122,7 +127,8 @@ const closeButtonStyle: CSSProperties = {
 //It lists every tag with labeled inputs, prefilled with the saved content, and
 //shows a spinner while the content loads.
 export const TagEditorModal = (): ReactElement => {
-  const { listTags, loadContent, saveContent, confirm, notify, setEditing, richText } = useTweakTags();
+  const { listTags, loadContent, pageContentFor, saveContent, confirm, notify, setEditing, richText } =
+    useTweakTags();
 
   const [loading, setLoading] = useState(true);
   const [tags, setTags] = useState<string[]>([]);
@@ -146,10 +152,22 @@ export const TagEditorModal = (): ReactElement => {
 
         for (const name of names) {
           const record = byTag.get(name);
+          const type = record?.type ?? 'plain';
+          const body = record?.body ?? '';
+          const mediaUrl = record?.mediaUrl ?? '';
+          const hasSaved = body.trim() !== '' || mediaUrl !== '';
+
+          //This modal covers the page, so a tag with nothing saved would be an
+          //empty box with only a name on it. Fall back to what the tag shows on
+          //the page right now. The value starts equal to the saved state, so
+          //leaving it alone still saves nothing.
+          const fromPage = hasSaved ? null : pageContentFor(name, type);
+
           initial[name] = {
-            type: record?.type ?? 'plain',
-            body: record?.body ?? '',
-            mediaUrl: record?.mediaUrl ?? '',
+            type,
+            body: hasSaved ? body : (fromPage?.body ?? ''),
+            mediaUrl: hasSaved ? mediaUrl : (fromPage?.mediaUrl ?? ''),
+            source: hasSaved ? 'saved' : fromPage === null ? 'missing' : 'page',
           };
         }
 
@@ -183,7 +201,12 @@ export const TagEditorModal = (): ReactElement => {
 
   const setField = (tag: string, field: 'body' | 'mediaUrl', value: string): void => {
     setDrafts((previous) => {
-      const current = previous[tag] ?? { type: 'plain', body: '', mediaUrl: '' };
+      const current: Draft = previous[tag] ?? {
+        type: 'plain',
+        body: '',
+        mediaUrl: '',
+        source: 'saved',
+      };
 
       return { ...previous, [tag]: { ...current, [field]: value } };
     });
@@ -298,6 +321,14 @@ export const TagEditorModal = (): ReactElement => {
                       <span style={{ opacity: 0.5, fontWeight: 400 }}> &middot; {draft.type}</span>
                     ) : null}
                   </span>
+
+                  {draft.source !== 'saved' ? (
+                    <span style={{ ...labelStyle, textTransform: 'none', letterSpacing: 0 }}>
+                      {draft.source === 'missing'
+                        ? 'Nothing saved yet, and this tag is not on the current page.'
+                        : 'Nothing saved yet. This is what the page shows right now.'}
+                    </span>
+                  ) : null}
 
                   {draft.type === 'media' ? (
                     <>

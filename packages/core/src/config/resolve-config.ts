@@ -12,9 +12,11 @@ import {
   DEFAULT_MODE,
   DEFAULT_REFRESH_TTL_SECONDS,
   DEFAULT_TENANT,
+  DEFAULT_WHITE_LABEL,
 } from '../constants/index.js';
 import type { TweakTagsConfig, TweakTagsUserConfig } from '../types/index.js';
 import { badRequest } from '../utilities/errors.js';
+import { createDefaultLogger } from '../utilities/logger.js';
 import { assertValidTenant } from '../utilities/tenant.js';
 
 //Checks that the user config has everything it needs and fills in defaults.
@@ -74,7 +76,7 @@ export const resolveConfig = (input: TweakTagsUserConfig): TweakTagsConfig => {
     mode: input.mode ?? DEFAULT_MODE,
     editInView: input.editInView ?? DEFAULT_EDIT_IN_VIEW,
     richText: input.richText ?? false,
-    whiteLabel: input.whiteLabel ?? false,
+    whiteLabel: input.whiteLabel ?? DEFAULT_WHITE_LABEL,
     apiBasePath: input.apiBasePath ?? DEFAULT_API_BASE_PATH,
     database: input.database,
     auth: {
@@ -96,5 +98,8 @@ export const resolveConfig = (input: TweakTagsUserConfig): TweakTagsConfig => {
     //The tenant is validated now so a bad value fails at startup, not per request.
     tenant: assertValidTenant(input.tenant ?? DEFAULT_TENANT),
     resolveTenant: input.resolveTenant,
+    //Falls back to console logging, so a failure always leaves a trace even when
+    //nobody configured anything.
+    logger: input.logger ?? createDefaultLogger(),
   };
 };

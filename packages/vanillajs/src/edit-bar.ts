@@ -5,7 +5,13 @@
 //Contributors:
 //Scarlett A. Scott (codescarlett)
 
-import { ROLES, isValidTag, type TagType, type TweakTagsEngine } from '@tweaktags/browser';
+import {
+  ROLES,
+  isValidTag,
+  type ContentRecord,
+  type TagType,
+  type TweakTagsEngine,
+} from '@tweaktags/browser';
 
 import { clear, el, type Child } from './dom.js';
 import { applyScope, type TweakTagsTheme } from './theme.js';
@@ -22,7 +28,30 @@ const PAGE_SIZE = 10;
 interface TagEntry {
   tag: string;
   type: TagType;
+  record: ContentRecord | null;
 }
+
+//Turns a saved record into the short line shown under a tag name in the Tags
+//panel. The panel is narrow, so this stays one readable line and the row's
+//title attribute carries the rest.
+const previewOf = (record: ContentRecord | null, type: TagType): string => {
+  if (!record) {
+    return 'No content yet';
+  }
+
+  //The row's type is the live one, since it can be changed without reloading.
+  if (type === 'media') {
+    return record.mediaUrl || record.body || 'No media set';
+  }
+
+  //Rich content is html, so strip the tags down to readable text.
+  const text = record.body
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  return text === '' ? 'Empty' : text;
+};
 
 //A remembered drag position for the floating bar.
 interface Position {
@@ -359,16 +388,16 @@ export const mountEditBar = (
     const listWrap = el('div', { style: { display: 'flex', flexDirection: 'column', gap: '0.6rem' } });
 
     const buildTagRow = (entry: TagEntry): HTMLElement => {
-      const kids: Child[] = [el('span', { class: 'tt-mono', style: { flex: '1', minWidth: '6rem' }, text: entry.tag })];
+      const head: Child[] = [el('span', { class: 'tt-mono', style: { flex: '1', minWidth: '6rem' }, text: entry.tag })];
 
       if (engine.richText) {
         const select = el('select', { class: 'tt-input', style: { width: 'auto', padding: '0.2rem 0.3rem' } }, typeOptions());
         select.value = entry.type;
         select.addEventListener('change', () => void handleChangeType(entry.tag, select.value as TagType));
-        kids.push(select);
+        head.push(select);
       }
 
-      kids.push(
+      head.push(
         el('button', {
           class: 'tt-btn tt-danger',
           style: { padding: '0.2rem 0.5rem' },
@@ -378,7 +407,21 @@ export const mountEditBar = (
         }),
       );
 
-      return el('li', { class: 'tt-list-item' }, kids);
+      //The saved content, so a tag can be told apart by what it holds rather
+      //than by its name alone.
+      const preview = previewOf(entry.record, entry.type);
+      const previewKids: Child[] = [];
+
+      if (entry.type === 'media' && entry.record?.mediaUrl) {
+        previewKids.push(el('img', { class: 'tt-list-thumb', src: entry.record.mediaUrl, alt: '' }));
+      }
+
+      previewKids.push(el('span', { text: preview }));
+
+      return el('li', { class: 'tt-list-item', title: preview }, [
+        el('div', { class: 'tt-list-head' }, head),
+        el('div', { class: 'tt-list-preview' }, previewKids),
+      ]);
     };
 
     const drawList = (): void => {
@@ -422,17 +465,20 @@ export const mountEditBar = (
       }
     };
 
+    //Loads the tag names with their saved content, so each row can show what the
+    //tag holds. The content is fetched whether or not rich text is on, since the
+    //preview matters in both cases.
     const loadEntries = async (): Promise<void> => {
       try {
         const names = await engine.listTags();
-        let typeByTag = new Map<string, TagType>();
+        const records = await engine.loadContent(names);
+        const byTag = new Map(records.map((record) => [record.tag, record]));
 
-        if (engine.richText) {
-          const records = await engine.loadContent(names);
-          typeByTag = new Map(records.map((record) => [record.tag, record.type]));
-        }
+        entries = names.map((tag) => {
+          const record = byTag.get(tag) ?? null;
 
-        entries = names.map((tag) => ({ tag, type: typeByTag.get(tag) ?? 'plain' }));
+          return { tag, type: record?.type ?? 'plain', record };
+        });
       } catch {
         entries = [];
       }

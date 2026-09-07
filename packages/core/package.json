@@ -1,7 +1,24 @@
 {
   "name": "@tweaktags/core",
-  "version": "1.0.0",
-  "description": "Core types, config loader, adapter interfaces, and request handler for TweakTags",
+  "version": "1.2.0",
+  "description": "Core of TweakTags, the inline CMS and visual content editor for React, Next.js, and vanilla JavaScript. Types, config loader, adapter interfaces, and the request handler.",
+  "keywords": [
+    "tweaktags",
+    "tweak-tags",
+    "cms",
+    "inline-cms",
+    "content-management",
+    "inline-editing",
+    "in-place-editing",
+    "editable-content",
+    "typescript",
+    "scarlett scott",
+    "scarlettiron",
+    "config",
+    "request-handler",
+    "adapter",
+    "types"
+  ],
   "license": "MIT",
   "type": "module",
   "engines": {
@@ -15,14 +32,24 @@
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
     },
     "./loader": {
-      "types": "./dist/loader.d.ts",
-      "import": "./dist/loader.js",
-      "require": "./dist/loader.cjs"
+      "import": {
+        "types": "./dist/loader.d.ts",
+        "default": "./dist/loader.js"
+      },
+      "require": {
+        "types": "./dist/loader.d.cts",
+        "default": "./dist/loader.cjs"
+      }
     }
   },
   "scripts": {
@@ -38,7 +65,10 @@
     "tsup": "^8.3.5",
     "typescript": "^5.6.3"
   },
-  "author": "Scarlett A. Scott (codescarlett)",
+  "author": {
+    "name": "Scarlett A. Scott",
+    "url": "https://github.com/scarlettiron"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/scarlettiron/tweaktags.git",

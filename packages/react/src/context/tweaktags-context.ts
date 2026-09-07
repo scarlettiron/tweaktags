@@ -73,6 +73,11 @@ export interface TweakTagsContextValue {
   //Also updates the shared cache. Used by the popup editor.
   loadContent: (tags: string[]) => Promise<ContentRecord[]>;
 
+  //What a tag shows on the page right now, or null when it is not on this page.
+  //The popup editor falls back to this for tags with nothing saved yet, since it
+  //covers the page and the editor cannot see what they are about to change.
+  pageContentFor: (tag: string, type: TagType) => { body: string; mediaUrl: string | null } | null;
+
   //Uploads a media file and returns the public url to save. Needs storage on
   //the server and the mediaUpload option on the client.
   uploadMedia: (file: File) => Promise<string>;

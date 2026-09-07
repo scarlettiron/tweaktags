@@ -1,7 +1,25 @@
 {
   "name": "@tweaktags/server",
-  "version": "1.0.0",
-  "description": "Framework agnostic Node backend handler for TweakTags",
+  "version": "1.2.0",
+  "description": "Node backend for TweakTags, the inline CMS for React, Next.js, and vanilla JavaScript. A framework agnostic request handler you can mount on any route, or run standalone.",
+  "keywords": [
+    "tweaktags",
+    "tweak-tags",
+    "cms",
+    "inline-cms",
+    "content-management",
+    "inline-editing",
+    "in-place-editing",
+    "editable-content",
+    "typescript",
+    "scarlett scott",
+    "scarlettiron",
+    "node",
+    "backend",
+    "api",
+    "request-handler",
+    "self-hosted"
+  ],
   "license": "MIT",
   "type": "module",
   "engines": {
@@ -15,9 +33,14 @@
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
     }
   },
   "scripts": {
@@ -52,7 +75,10 @@
     "tsup": "^8.3.5",
     "typescript": "^5.6.3"
   },
-  "author": "Scarlett A. Scott (codescarlett)",
+  "author": {
+    "name": "Scarlett A. Scott",
+    "url": "https://github.com/scarlettiron"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/scarlettiron/tweaktags.git",

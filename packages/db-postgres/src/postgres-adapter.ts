@@ -21,23 +21,60 @@ import {
   type RefreshTokenRecord,
   type StoredUser,
   type TagType,
+  type LogEntry,
+  type Logger,
   AUTH_TABLE,
   CONTENT_TABLE,
   REFRESH_TABLE,
+  createDefaultLogger,
+  diagnoseFailure,
+  newTraceId,
+  toLoggedError,
 } from '@tweaktags/core';
 
 import { MIGRATIONS_TABLE, UNIQUE_VIOLATION } from './constants/index.js';
 import { MIGRATIONS } from './migrations/migrations.js';
 import { mapContentRow, mapUserRow } from './utilities/row-mappers.js';
 
+//Whether a connection string asks for SSL through an sslmode parameter.
+//pg reads sslmode out of the string itself, so a config that says one thing and
+//a string that says another is the usual cause of "The server does not support
+//SSL connections" and of connections being refused for having no SSL.
+const sslModeOf = (connectionString: string): string | null => {
+  const match = /[?&]sslmode=([^&]+)/i.exec(connectionString);
+
+  return match?.[1] ? match[1].toLowerCase() : null;
+};
+
 //Builds the settings the pg Pool needs from the user database config.
 //Supports either a full connection string or the separate parts.
-const buildPoolConfig = (config: DatabaseConfig): PoolConfig => {
+//
+//When ssl is false but the string says sslmode=require, or the other way round,
+//the two disagree and one of them silently wins. The config is the explicit
+//choice, so it decides, and the caller is told what happened.
+const buildPoolConfig = (config: DatabaseConfig, warn?: (message: string) => void): PoolConfig => {
+  const ssl = config.ssl ? { rejectUnauthorized: false } : undefined;
+
   if (config.connectionString) {
-    return {
-      connectionString: config.connectionString,
-      ssl: config.ssl ? { rejectUnauthorized: false } : undefined,
-    };
+    const mode = sslModeOf(config.connectionString);
+    const stringWantsSsl = mode !== null && mode !== 'disable';
+
+    if (config.ssl === true && mode === 'disable') {
+      warn?.(
+        'The database config sets ssl: true but the connection string ends with sslmode=disable. ' +
+          'Using ssl: true. Remove one of them so the two agree.',
+      );
+    }
+
+    if (config.ssl === false && stringWantsSsl) {
+      warn?.(
+        `The database config sets ssl: false but the connection string asks for sslmode=${mode}. ` +
+          'The connection string wins here, so the connection will still use SSL. Remove the sslmode ' +
+          'parameter if you meant to turn SSL off.',
+      );
+    }
+
+    return { connectionString: config.connectionString, ssl };
   }
 
   return {
@@ -46,7 +83,7 @@ const buildPoolConfig = (config: DatabaseConfig): PoolConfig => {
     user: config.user,
     password: config.password,
     database: config.database,
-    ssl: config.ssl ? { rejectUnauthorized: false } : undefined,
+    ssl,
   };
 };
 
@@ -65,8 +102,46 @@ const errorCode = (error: unknown): string | undefined => {
 export class PostgresAdapter implements DbAdapter {
   private readonly pool: Pool;
 
-  constructor(config: DatabaseConfig) {
-    this.pool = new Pool(buildPoolConfig(config));
+  constructor(config: DatabaseConfig, logger?: Logger) {
+    //A mismatched SSL setting only shows up later as a connection error that
+    //does not mention the config at all, so say it here, at startup.
+    const warn = (message: string): void => {
+      const entry: LogEntry = {
+        level: 'warn',
+        event: 'database.config',
+        message,
+        traceId: newTraceId(),
+      };
+
+      if (logger) {
+        logger(entry);
+      } else {
+        createDefaultLogger()(entry);
+      }
+    };
+
+    this.pool = new Pool(buildPoolConfig(config, warn));
+
+    //An idle client that errors takes the process down without this, since pg
+    //emits it on the pool rather than on the query that started it.
+    this.pool.on('error', (error) => {
+      const diagnosis = diagnoseFailure(error);
+      const entry: LogEntry = {
+        level: 'error',
+        event: 'database.pool',
+        message: error.message,
+        traceId: newTraceId(),
+        reason: diagnosis.reason,
+        hint: diagnosis.hint,
+        error: toLoggedError(error),
+      };
+
+      if (logger) {
+        logger(entry);
+      } else {
+        createDefaultLogger()(entry);
+      }
+    });
   }
 
   //Creates the tracking table and runs any migrations that have not run yet.

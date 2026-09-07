@@ -29,4 +29,25 @@ export default defineConfig({
     //so we turn that off for local http development only.
     cookieSecure: process.env.NODE_ENV === 'production',
   },
+
+  //Leave this out and failures are written to the console, which is all a small
+  //install needs. It is here to show the shape: every failed request arrives as
+  //one entry with a trace id, the action, a stack, and a hint for the causes
+  //TweakTags recognises, such as a database asked for SSL that it does not
+  //support. The same trace id goes back to the browser, so a report of "it
+  //broke" can be matched to the line that explains it.
+  logger: (entry) => {
+    if (entry.level === 'error') {
+      console.error(`[tweaktags] ${entry.event} ${entry.traceId}`, {
+        action: entry.action,
+        reason: entry.reason,
+        hint: entry.hint,
+        error: entry.error,
+      });
+
+      return;
+    }
+
+    console.log(`[tweaktags] ${entry.event} ${entry.traceId} ${entry.message}`);
+  },
 });

@@ -3,11 +3,79 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>TweakTags &mdash; edit in place content for React and Next</title>
+    <title>TweakTags &mdash; Inline CMS for React &amp; Next.js by Scarlett A. Scott</title>
     <meta
       name="description"
-      content="TweakTags is a lightweight, npm installable edit in place content layer for otherwise static React and Next sites."
+      content="TweakTags is an open source inline CMS and visual content editor for React, Next.js, and vanilla JavaScript. Edit text, rich text, and media right on the live page."
     />
+    <meta name="author" content="Scarlett A. Scott" />
+    <link rel="canonical" href="https://scarlettiron.github.io/tweaktags/" />
+
+    <!--An inline svg so the tab icon needs no extra file: the brand dot on the
+        same dark square the site uses.-->
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230e0f13'/%3E%3Ccircle cx='16' cy='16' r='7' fill='%230a84ff'/%3E%3C/svg%3E"
+    />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="TweakTags" />
+    <meta property="og:url" content="https://scarlettiron.github.io/tweaktags/" />
+    <meta
+      property="og:title"
+      content="TweakTags — Inline CMS for React, Next.js, and vanilla JavaScript"
+    />
+    <meta
+      property="og:description"
+      content="An open source inline CMS and visual content editor. Mark any element with a data-tweaktags-* attribute and edit text, rich text, and media right on the live page."
+    />
+    <!--GitHub renders a social card for the repository at this url, so links to
+        the docs preview with something rather than a blank box. Setting a custom
+        social image in the repository settings replaces it automatically.-->
+    <meta property="og:image" content="https://opengraph.githubassets.com/1/scarlettiron/tweaktags" />
+    <meta property="og:image:alt" content="TweakTags on GitHub" />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta
+      name="twitter:title"
+      content="TweakTags — Inline CMS for React, Next.js, and vanilla JavaScript"
+    />
+    <meta
+      name="twitter:description"
+      content="An open source inline CMS and visual content editor, created by Scarlett A. Scott."
+    />
+    <meta name="twitter:image" content="https://opengraph.githubassets.com/1/scarlettiron/tweaktags" />
+
+    <!--Tells search engines that the project, the npm scope, and the author are
+        one connected thing, rather than three unrelated names.-->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "TweakTags",
+        "applicationCategory": "DeveloperApplication",
+        "operatingSystem": "Any",
+        "description": "An open source inline CMS and visual content editor for React, Next.js, and vanilla JavaScript. Edit text, rich text, and media right on the live page.",
+        "url": "https://scarlettiron.github.io/tweaktags/",
+        "downloadUrl": "https://www.npmjs.com/package/tweaktags",
+        "codeRepository": "https://github.com/scarlettiron/tweaktags",
+        "license": "https://opensource.org/licenses/MIT",
+        "programmingLanguage": "TypeScript",
+        "keywords": "inline CMS, visual content editor, React CMS, Next.js CMS, in place editing, content management",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+        "author": {
+          "@type": "Person",
+          "name": "Scarlett A. Scott",
+          "alternateName": "scarlettiron",
+          "url": "https://github.com/scarlettiron"
+        },
+        "maintainer": {
+          "@type": "Person",
+          "name": "Scarlett A. Scott",
+          "url": "https://github.com/scarlettiron"
+        }
+      }
+    </script>
     <style>
       :root {
         --bg: #0e0f13;
@@ -651,6 +719,8 @@
         <a href="#cli">CLI commands</a>
         <a href="#tenants">Multi-tenant</a>
         <a href="#uploads">Media uploads</a>
+        <a href="#white-label">White label</a>
+        <a href="#logging">Logging &amp; failures</a>
         <a href="#security">Security</a>
       </nav>
 
@@ -664,6 +734,11 @@
             can click in and edit it live. Everyone else just sees the finished content. It installs
             from npm and drops into any React or Next app, or a plain HTML site with a single
             <a href="#vanilla">script tag</a>.
+          </p>
+
+          <p style="color: var(--muted); margin-top: -0.5rem">
+            An open source inline CMS and visual content editor, created and maintained by
+            <a href="https://github.com/scarlettiron">Scarlett A. Scott (@scarlettiron)</a>.
           </p>
 
           <div class="pill-row">
@@ -697,6 +772,12 @@
         <!-- INSTALL -->
         <section id="install">
           <h2>Install</h2>
+          <p>
+            You need <strong>Node 16 or newer</strong>. If your app uses TypeScript you also need
+            <strong>4.5 or newer</strong>, since older versions cannot read the type declarations
+            TweakTags ships. TypeScript is optional, everything works from plain JavaScript too.
+          </p>
+
           <p>Here is everything a Next.js app on Postgres needs to get going:</p>
 
           <div class="code" data-lang="bash">
@@ -907,6 +988,13 @@ npx tweaktags create-superuser --email you@example.com --password a-strong-passw
             everything in one place.
           </p>
 
+          <p>
+            The popup covers your page, so a tag with nothing saved yet would otherwise be an empty
+            box with only a name on it. Those fields show what the tag currently displays on the
+            page instead, marked <em>Nothing saved yet</em>, so you can read what you are about to
+            replace. Leaving one alone saves nothing: only fields you actually edit are written.
+          </p>
+
           <div class="stage">
             <span class="tag">Live preview &middot; popup editor</span>
             <div class="canvas" style="padding: 1.25rem">
@@ -948,6 +1036,12 @@ npx tweaktags create-superuser --email you@example.com --password a-strong-passw
             <code>&lt;TweakTagsAdminPanel /&gt;</code> on its own route and you get a proper dashboard:
             a full page login, then tabs to view, create, and edit your tags. The view and edit lists
             each come with their own search and pagination, so big sites stay easy to get around.
+          </p>
+
+          <p>
+            Both lists show each tag's saved content, so you can read a tag before you open it for
+            editing. Media shows the file itself, rich text renders the way it does on your page, and
+            anything long collapses behind a <strong>Show more</strong> toggle.
           </p>
 
           <div class="code" data-lang="tsx">
@@ -1258,6 +1352,110 @@ npx tweaktags create-superuser --email you@example.com --password a-strong-passw
         </section>
 
         <!-- SECURITY -->
+        <section id="white-label">
+          <h2>White label</h2>
+          <p>
+            TweakTags is white label out of the box. No TweakTags name appears anywhere your editors
+            can see, including the admin panel, so an install looks like part of your own product.
+            There is nothing to turn on.
+          </p>
+
+          <p>
+            If you would rather show the TweakTags name, set <code>whiteLabel</code> to
+            <code>false</code> in two places: your config, and the client.
+          </p>
+
+          <div class="code" data-lang="ts">
+            <div class="bar"><span>tweaktags.config.ts</span><button class="copy">Copy</button></div>
+            <pre><span class="tok-k">export default</span> <span class="tok-f">defineConfig</span>({
+  whiteLabel: <span class="tok-k">false</span>,
+  <span class="tok-c">// ...the rest of your config</span>
+});</pre>
+          </div>
+
+          <div class="code" data-lang="tsx">
+            <div class="bar"><span>app/layout.tsx</span><button class="copy">Copy</button></div>
+            <pre>&lt;<span class="tok-f">TweakTagsProvider</span> apiBasePath=<span class="tok-s">"/api/tweaktags"</span> whiteLabel={<span class="tok-k">false</span>}&gt;</pre>
+          </div>
+
+          <p>
+            On a plain HTML site the same switch is
+            <code>TweakTags.init({ whiteLabel: false })</code>.
+          </p>
+
+          <p class="callout">
+            <strong>Upgrading from 1.1.0 or earlier?</strong> White label used to be off by default.
+            After upgrading, the TweakTags name disappears from your editors' UI unless you set
+            <code>whiteLabel: false</code>.
+          </p>
+        </section>
+
+        <section id="logging">
+          <h2>Logging &amp; failures</h2>
+          <p>
+            When something on the server goes wrong, TweakTags writes one line about it and hands the
+            caller a trace id. You do not have to set anything up: with no
+            <code>logger</code> in your config, entries go to the console your server already has.
+          </p>
+
+          <div class="code" data-lang="bash">
+            <div class="bar"><span>server output</span><button class="copy">Copy</button></div>
+            <pre>[tweaktags] ERROR request.failed trace=mtqj54hvf4av7g action=listTags status=500 code=internal_error durationMs=1
+  connect ECONNREFUSED 127.0.0.1:5432
+  {
+    hint: 'Nothing answered at the database host and port. Check the database is running, and
+           that the host and port in the config match it. From inside Docker, "localhost"
+           means the container.',
+    tenant: 'default',
+    error: { name: 'Error', message: '...', code: 'ECONNREFUSED', stack: '...' }
+  }</pre>
+          </div>
+
+          <p>
+            The <strong>trace id</strong> is the useful part. The browser gets the same id back, so
+            when someone reports that saving failed, you search your logs for that one string and
+            land on the line that explains it.
+          </p>
+
+          <h3>Hints</h3>
+          <p>
+            For the failures a self hosted install actually hits, the log says what usually causes
+            them, in plain language:
+          </p>
+          <ul>
+            <li>A database asked for SSL that it does not support, or one that refuses a connection without SSL</li>
+            <li>Nothing listening at the host and port</li>
+            <li>A rejected username or password</li>
+            <li>A database that is not there, or a SQLite file that cannot be opened</li>
+            <li>TweakTags tables that were never migrated</li>
+          </ul>
+
+          <h3>Sending entries somewhere else</h3>
+          <p>
+            Set <code>logger</code> in your config to route entries into whatever you already run.
+            It is called with one plain object per entry, so it fits any logging library.
+          </p>
+
+          <div class="code" data-lang="ts">
+            <div class="bar"><span>tweaktags.config.ts</span><button class="copy">Copy</button></div>
+            <pre><span class="tok-k">export default</span> <span class="tok-f">defineConfig</span>({
+  logger: (entry) =&gt; {
+    <span class="tok-c">// level, event, message, traceId, action, status, durationMs,</span>
+    <span class="tok-c">// tenant, reason, hint, error { name, message, code, stack }</span>
+    myLogger[entry.level](entry.message, entry);
+  },
+  <span class="tok-c">// ...the rest of your config</span>
+});</pre>
+          </div>
+
+          <p class="callout">
+            <strong>What the browser sees.</strong> In production the internal message stays on the
+            server and the response carries only the trace id, so a database error never reaches a
+            visitor. In development the message comes back as well, since whoever sees it is the
+            person who can fix it.
+          </p>
+        </section>
+
         <section id="security">
           <h2>Security</h2>
           <p>
@@ -1303,7 +1501,11 @@ npx tweaktags create-superuser --email you@example.com --password a-strong-passw
     </div>
 
     <footer>
-      TweakTags is open source under the MIT License. Built by Scarlett A. Scott (codescarlett).
+      TweakTags is an open source inline CMS and visual content editor for React, Next.js, and
+      vanilla JavaScript, released under the MIT License. Created and maintained by
+      <a href="https://github.com/scarlettiron">Scarlett A. Scott (@scarlettiron)</a>, and published
+      as the <a href="https://www.npmjs.com/package/tweaktags">tweaktags</a> and
+      <a href="https://www.npmjs.com/org/tweaktags">@tweaktags</a> packages on npm.
     </footer>
 
     <script>

@@ -42,11 +42,31 @@ export const mountPopupEditor = (
   };
 
   const buildRow = (tag: string, type: TagType, record: ContentRecord | null): { row: HTMLElement; field: Field } => {
-    const initialBody = record?.body ?? '';
-    const initialMedia = record?.mediaUrl ?? '';
+    //This popup covers the page, so a tag with nothing saved would otherwise be
+    //an empty box with only a name on it. Fall back to what the tag shows on the
+    //page right now, so there is something to read and edit from. It starts out
+    //matching the initial value, so leaving it alone saves nothing.
+    const saved = { body: record?.body ?? '', media: record?.mediaUrl ?? '' };
+    const hasSaved = saved.body.trim() !== '' || saved.media !== '';
+    const fromPage = hasSaved ? null : engine.pageContentFor(tag, type);
+
+    const initialBody = hasSaved ? saved.body : (fromPage?.body ?? '');
+    const initialMedia = hasSaved ? saved.media : (fromPage?.mediaUrl ?? '');
 
     const label = el('span', { class: 'tt-mono', text: engine.richText ? `${tag} · ${type}` : tag });
     const kids: Child[] = [label];
+
+    if (!hasSaved) {
+      kids.push(
+        el('span', {
+          class: 'tt-hint',
+          text:
+            fromPage === null
+              ? 'Nothing saved yet, and this tag is not on the current page.'
+              : 'Nothing saved yet. This is what the page shows right now.',
+        }),
+      );
+    }
 
     let getBody: () => string;
     let getMedia: () => string | null;
@@ -56,12 +76,29 @@ export const mountPopupEditor = (
       getBody = () => initialBody;
       getMedia = () => (input.value.trim() === '' ? null : input.value);
       kids.push(el('label', { class: 'tt-label', text: 'Media URL' }), input);
+
+      //Show the saved file itself, so the current media is recognisable without
+      //having to read the url. It follows whatever the input is changed to.
+      const thumb = el('img', {
+        alt: '',
+        style: { maxWidth: '12rem', marginTop: '0.5rem', borderRadius: '0.3rem' },
+      });
+      const syncThumb = (): void => {
+        thumb.src = input.value;
+        thumb.style.display = input.value.trim() === '' ? 'none' : '';
+      };
+      syncThumb();
+      input.addEventListener('input', syncThumb);
+
       const upload = uploadButton(engine, (url) => {
         input.value = url;
+        syncThumb();
       });
       if (upload) {
         kids.push(upload);
       }
+
+      kids.push(thumb);
     } else if (type === 'rich') {
       const editor = el('div', { class: 'tt-input', html: initialBody, style: { minHeight: '4rem' } });
       editor.setAttribute('contenteditable', 'true');

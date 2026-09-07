@@ -60,7 +60,7 @@ export const MIGRATIONS: Migration[] = [
         expires_at TEXT NOT NULL,
         revoked BOOLEAN NOT NULL DEFAULT false
       );
-      CREATE INDEX IF NOT EXISTS idx_tweaktags_refresh_family
+      CREATE INDEX IF NOT EXISTS "__TweakTags__Refresh_Family_Idx"
         ON "${REFRESH_TABLE}" (family_id);
     `,
   },
@@ -74,7 +74,7 @@ export const MIGRATIONS: Migration[] = [
         ADD COLUMN IF NOT EXISTS tenant TEXT NOT NULL DEFAULT 'default';
       ALTER TABLE "${CONTENT_TABLE}"
         DROP CONSTRAINT IF EXISTS "${CONTENT_TABLE}_tag_key";
-      CREATE UNIQUE INDEX IF NOT EXISTS idx_tweaktags_content_tenant_tag
+      CREATE UNIQUE INDEX IF NOT EXISTS "__TweakTags__Content_Tenant_Tag_Idx"
         ON "${CONTENT_TABLE}" (tenant, tag);
     `,
   },

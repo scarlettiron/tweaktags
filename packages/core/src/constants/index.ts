@@ -76,6 +76,9 @@ export const TENANT_PATTERN = /^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?$/i;
 export const DEFAULT_MODE = 'embedded';
 export const DEFAULT_API_BASE_PATH = '/api/tweaktags';
 export const DEFAULT_EDIT_IN_VIEW = false;
+//The UI carries no TweakTags branding unless a site asks for it, so an install
+//looks like part of the host app out of the box.
+export const DEFAULT_WHITE_LABEL = true;
 //The access token is short lived, the refresh token lasts longer.
 //When the access token expires, the refresh token quietly gets a new one.
 //When the refresh token expires, the user is signed out and logs back in.

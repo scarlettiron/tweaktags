@@ -8,7 +8,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties, PointerEvent as ReactPointerEvent, ReactElement } from 'react';
 
-import { ROLES, isValidTag, type TagType } from '@tweaktags/core';
+import { ROLES, isValidTag, type ContentRecord, type TagType } from '@tweaktags/core';
 
 import { useTweakTags } from '../hooks/use-tweaktags.js';
 import { UploadButton } from './upload-button.js';
@@ -216,11 +216,35 @@ const PanelHeader = ({ title, onClose }: { title: string; onClose: () => void })
   </div>
 );
 
-//One tag row in the Tags panel.
+//One tag row in the Tags panel, with the saved content so the row can show what
+//the tag actually holds, not just its name.
 interface TagEntry {
   tag: string;
   type: TagType;
+  record: ContentRecord | null;
 }
+
+//Turns a saved record into the short line shown under a tag name. The panel is
+//narrow, so this stays one readable line and the row's title attribute carries
+//the rest.
+const previewOf = (record: ContentRecord | null, type: TagType): string => {
+  if (!record) {
+    return 'No content yet';
+  }
+
+  //The row's type is the live one, since it can be changed without reloading.
+  if (type === 'media') {
+    return record.mediaUrl || record.body || 'No media set';
+  }
+
+  //Rich content is html, so strip the tags down to readable text.
+  const text = record.body
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  return text === '' ? 'Empty' : text;
+};
 
 //The panel where a superuser creates tags, changes their type, and deletes them.
 const TagManager = ({ onClose }: { onClose: () => void }): ReactElement => {
@@ -246,17 +270,19 @@ const TagManager = ({ onClose }: { onClose: () => void }): ReactElement => {
   const currentPage = Math.min(page, totalPages - 1);
   const pageItems = filtered.slice(currentPage * PAGE_SIZE, currentPage * PAGE_SIZE + PAGE_SIZE);
 
-  //Loads the tag names, and their types when rich text is on.
+  //Loads the tag names with their saved content, so each row can show what the
+  //tag holds. The content is fetched whether or not rich text is on, since the
+  //preview matters in both cases.
   const loadEntries = async (): Promise<TagEntry[]> => {
     const names = await listTags();
-    let typeByTag = new Map<string, TagType>();
+    const records = await loadContent(names);
+    const byTag = new Map(records.map((record) => [record.tag, record]));
 
-    if (richText) {
-      const records = await loadContent(names);
-      typeByTag = new Map(records.map((record) => [record.tag, record.type]));
-    }
+    return names.map((tag) => {
+      const record = byTag.get(tag) ?? null;
 
-    return names.map((tag) => ({ tag, type: typeByTag.get(tag) ?? 'plain' }));
+      return { tag, type: record?.type ?? 'plain', record };
+    });
   };
 
   useEffect(() => {
@@ -423,38 +449,82 @@ const TagManager = ({ onClose }: { onClose: () => void }): ReactElement => {
               scrollbarColor: `${COLORS.primary} ${COLORS.surfaceRaised}`,
             }}
           >
-            {pageItems.map((entry) => (
-              <li
-                key={entry.tag}
-                style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}
-              >
-                <span style={{ fontFamily: 'monospace', flex: 1, minWidth: '6rem' }}>
-                  {entry.tag}
-                </span>
+            {pageItems.map((entry) => {
+              const preview = previewOf(entry.record, entry.type);
 
-                {richText ? (
-                  <select
-                    style={{ ...inputStyle, padding: '0.2rem 0.3rem' }}
-                    value={entry.type}
-                    onChange={(event) =>
-                      void handleChangeType(entry.tag, event.target.value as TagType)
-                    }
-                  >
-                    <option value="plain">plain</option>
-                    <option value="rich">rich</option>
-                    <option value="media">media</option>
-                  </select>
-                ) : null}
-
-                <button
-                  type="button"
-                  style={{ ...buttonStyle, background: COLORS.danger, padding: '0.2rem 0.5rem' }}
-                  onClick={() => void handleDelete(entry.tag)}
+              return (
+                <li
+                  key={entry.tag}
+                  style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}
                 >
-                  Delete
-                </button>
-              </li>
-            ))}
+                  <div
+                    style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}
+                  >
+                    <span style={{ fontFamily: 'monospace', flex: 1, minWidth: '6rem' }}>
+                      {entry.tag}
+                    </span>
+
+                    {richText ? (
+                      <select
+                        style={{ ...inputStyle, padding: '0.2rem 0.3rem' }}
+                        value={entry.type}
+                        onChange={(event) =>
+                          void handleChangeType(entry.tag, event.target.value as TagType)
+                        }
+                      >
+                        <option value="plain">plain</option>
+                        <option value="rich">rich</option>
+                        <option value="media">media</option>
+                      </select>
+                    ) : null}
+
+                    <button
+                      type="button"
+                      style={{ ...buttonStyle, background: COLORS.danger, padding: '0.2rem 0.5rem' }}
+                      onClick={() => void handleDelete(entry.tag)}
+                    >
+                      Delete
+                    </button>
+                  </div>
+
+                  {/*The saved content, so a tag can be told apart by what it holds
+                     rather than by its name alone. The panel is narrow, so this
+                     clamps to two lines and the tooltip carries the full text.*/}
+                  <div
+                    title={preview}
+                    style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', minWidth: 0 }}
+                  >
+                    {entry.type === 'media' && entry.record?.mediaUrl ? (
+                      <img
+                        src={entry.record.mediaUrl}
+                        alt=""
+                        style={{
+                          width: '2rem',
+                          height: '2rem',
+                          objectFit: 'cover',
+                          borderRadius: '0.25rem',
+                          flex: 'none',
+                        }}
+                      />
+                    ) : null}
+
+                    <span
+                      style={{
+                        color: COLORS.muted,
+                        fontSize: '12px',
+                        overflow: 'hidden',
+                        display: '-webkit-box',
+                        WebkitBoxOrient: 'vertical',
+                        WebkitLineClamp: 2,
+                        overflowWrap: 'anywhere',
+                      }}
+                    >
+                      {preview}
+                    </span>
+                  </div>
+                </li>
+              );
+            })}
           </ul>
 
           {totalPages > 1 ? (

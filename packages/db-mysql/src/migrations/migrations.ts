@@ -40,7 +40,7 @@ export const MIGRATIONS: Migration[] = [
         password_hash VARCHAR(255) NOT NULL,
         role VARCHAR(32) NOT NULL,
         created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        CONSTRAINT chk_tweaktags_role CHECK (role IN ('superuser', 'editor'))
+        CONSTRAINT \`__TweakTags__Users_Role_Chk\` CHECK (role IN ('superuser', 'editor'))
       );
     `,
   },
@@ -60,7 +60,7 @@ export const MIGRATIONS: Migration[] = [
         user_id VARCHAR(255) NOT NULL,
         expires_at VARCHAR(32) NOT NULL,
         revoked TINYINT(1) NOT NULL DEFAULT 0,
-        INDEX idx_tweaktags_refresh_family (family_id)
+        INDEX \`__TweakTags__Refresh_Family_Idx\` (family_id)
       );
     `,
   },
@@ -73,7 +73,7 @@ export const MIGRATIONS: Migration[] = [
       ALTER TABLE \`${CONTENT_TABLE}\`
         ADD COLUMN tenant VARCHAR(190) NOT NULL DEFAULT 'default',
         DROP INDEX tag,
-        ADD UNIQUE KEY uniq_tweaktags_tenant_tag (tenant, tag);
+        ADD UNIQUE KEY \`__TweakTags__Content_Tenant_Tag_Idx\` (tenant, tag);
     `,
   },
 ];

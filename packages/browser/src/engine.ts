@@ -85,6 +85,15 @@ export class TweakTagsEngine {
   //The html each element had before editing, so we can put it back on discard.
   private readonly originalText = new Map<HTMLElement, string>();
 
+  //What each element showed on the page before TweakTags put anything in it,
+  //captured the moment the crawler finds it. A tag whose saved record is empty
+  //blanks its element, so afterwards this is the only copy of what the page
+  //originally said. The popup editor falls back to it.
+  private readonly pageContent = new Map<
+    HTMLElement,
+    { html: string; text: string; src: string | null }
+  >();
+
   //Elements that have been changed but not saved yet.
   private readonly dirty = new Set<HTMLElement>();
 
@@ -111,7 +120,7 @@ export class TweakTagsEngine {
     this._editInView = options.editInView ?? true;
     this._richText = options.richText ?? false;
     this._mediaUpload = options.mediaUpload ?? false;
-    this._whiteLabel = options.whiteLabel ?? false;
+    this._whiteLabel = options.whiteLabel ?? true;
     this.tokenStorage = options.tokenStorage ?? 'cookie';
     this.csrfCookieName = options.csrfCookieName ?? 'tweaktags_csrf';
 
@@ -159,6 +168,46 @@ export class TweakTagsEngine {
 
   public get hasUnsavedChanges(): boolean {
     return this._hasUnsavedChanges;
+  }
+
+  //What a tag currently shows on the page, read back from the first element
+  //carrying it. Returns null when the tag is not on this page at all.
+  //The popup editor uses this for tags with nothing saved yet: it covers the
+  //whole page, so without this an editor sees an empty box and a tag name, with
+  //no way to tell what they are about to replace. It mirrors applyToElement, so
+  //what comes out matches what that would have put in.
+  public pageContentFor(tag: string, type: TagType): { body: string; mediaUrl: string | null } | null {
+    const elements = this.elementsByTag.get(tag);
+
+    if (!elements) {
+      return null;
+    }
+
+    //Any element carrying the tag will do, since they all show the same content.
+    const [element] = elements;
+
+    if (!element) {
+      return null;
+    }
+
+    //Prefer what the page said before TweakTags touched the element, since an
+    //empty saved record will have blanked the live one by now.
+    const captured = this.pageContent.get(element);
+
+    if (type === 'media' || element.tagName === 'IMG') {
+      const url = captured?.src ?? ('src' in element ? element.getAttribute('src') : null);
+
+      return { body: '', mediaUrl: url === null || url === '' ? null : url };
+    }
+
+    if (type === 'rich') {
+      return { body: captured?.html ?? element.innerHTML, mediaUrl: null };
+    }
+
+    return {
+      body: captured?.text ?? (element.innerText || element.textContent || '').trim(),
+      mediaUrl: null,
+    };
   }
 
   //A plain snapshot, handy for React's useSyncExternalStore and for logging.
@@ -595,6 +644,15 @@ export class TweakTagsEngine {
     set.add(element);
     this.tagByElement.set(element, tag);
 
+    //Capture what the page says here before any saved content replaces it.
+    if (!this.pageContent.has(element)) {
+      this.pageContent.set(element, {
+        html: element.innerHTML,
+        text: (element.innerText || element.textContent || '').trim(),
+        src: 'src' in element ? element.getAttribute('src') : null,
+      });
+    }
+
     const record = this.content[tag];
 
     if (record) {
@@ -622,6 +680,7 @@ export class TweakTagsEngine {
 
     this.tagByElement.delete(element);
     this.originalText.delete(element);
+    this.pageContent.delete(element);
     this.dirty.delete(element);
     this.unbindElement(element);
   }

@@ -1,7 +1,31 @@
 {
   "name": "@tweaktags/vanillajs",
-  "version": "1.0.0",
-  "description": "Vanilla JavaScript edit in place UI for TweakTags, no framework required",
+  "version": "1.2.0",
+  "description": "Inline CMS and visual content editor for plain HTML and JavaScript. Edit text, rich text, and media right on the live page. No framework and no build step.",
+  "keywords": [
+    "tweaktags",
+    "tweak-tags",
+    "cms",
+    "inline-cms",
+    "content-management",
+    "inline-editing",
+    "in-place-editing",
+    "editable-content",
+    "typescript",
+    "scarlett scott",
+    "scarlettiron",
+    "visual-editor",
+    "website-editor",
+    "page-editor",
+    "wysiwyg",
+    "rich-text-editor",
+    "static-site",
+    "vanilla-js",
+    "javascript",
+    "html",
+    "no-framework",
+    "script-tag"
+  ],
   "license": "MIT",
   "type": "module",
   "engines": {
@@ -17,9 +41,14 @@
   "jsdelivr": "./dist/index.global.js",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
     },
     "./global": "./dist/index.global.js"
   },
@@ -37,7 +66,10 @@
     "tsup": "^8.3.5",
     "typescript": "^5.6.3"
   },
-  "author": "Scarlett A. Scott (codescarlett)",
+  "author": {
+    "name": "Scarlett A. Scott",
+    "url": "https://github.com/scarlettiron"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/scarlettiron/tweaktags.git",

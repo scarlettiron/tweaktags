@@ -209,7 +209,8 @@ export interface TweakTagsUserConfig {
   richText?: boolean;
 
   //When true, no TweakTags branding shows anywhere in the UI, including the
-  //admin panel, so the editor carries your own name instead. Defaults to false.
+  //admin panel, so the editor carries your own name instead. Defaults to true.
+  //Set it to false to show the TweakTags name in the UI.
   //The client packages take the same option, so set it in both places.
   whiteLabel?: boolean;
   apiBasePath?: string;
@@ -228,6 +229,11 @@ export interface TweakTagsUserConfig {
   //An optional way to work out the tenant from the request, for one server that
   //serves several domains. Return undefined to fall back to the tenant above.
   resolveTenant?: (context: TenantContext) => string | undefined;
+
+  //Where server side log entries go. Leave it out to write readable lines to the
+  //console, which is enough for a self hosted install. Set it to send entries to
+  //your own logging instead. Failures are always logged, whichever you use.
+  logger?: Logger;
 }
 
 //The fully resolved config, after defaults have been applied.
@@ -250,6 +256,11 @@ export interface TweakTagsConfig {
 
   //An optional resolver to pick the tenant per request, for a shared server.
   resolveTenant?: (context: TenantContext) => string | undefined;
+
+  //Where server side log entries go. resolveConfig always fills this in, but it
+  //stays optional so a hand built config object is still valid. The handler
+  //falls back to console logging when it is missing.
+  logger?: Logger;
 }
 
 //One stored refresh token, used to rotate tokens and detect reuse.
@@ -296,3 +307,50 @@ export interface TweakTagsResponse {
   status: number;
   body: Record<string, unknown>;
 }
+
+//How serious a log entry is.
+export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
+
+//What went wrong underneath, when we recognise it. Used for the log hint, so an
+//install can be fixed without reading the TweakTags source.
+export type FailureReason =
+  | 'database_ssl_not_supported'
+  | 'database_ssl_required'
+  | 'database_unreachable'
+  | 'database_auth_failed'
+  | 'database_missing'
+  | 'migrations_missing'
+  | 'unknown';
+
+//The result of looking at a thrown value and trying to explain it.
+export interface FailureDiagnosis {
+  reason: FailureReason;
+  //Plain language guidance for whoever is troubleshooting. Server side only.
+  hint?: string;
+  //The driver's own error code, when it had one.
+  driverCode?: string;
+}
+
+//One structured line from the TweakTags server. Every failed request produces
+//one, carrying the same traceId the caller was given, so a report of "it broke"
+//can be tied to the exact failure.
+export interface LogEntry {
+  level: LogLevel;
+  //What happened, as a stable name like 'request.failed'.
+  event: string;
+  message: string;
+  traceId: string;
+  action?: string;
+  status?: number;
+  code?: string;
+  tenant?: string;
+  userId?: string;
+  durationMs?: number;
+  reason?: FailureReason;
+  hint?: string;
+  error?: { name: string; message: string; code?: string; stack?: string };
+}
+
+//Where log entries go. Supply your own in the config to send them to whatever
+//you already run, instead of the console.
+export type Logger = (entry: LogEntry) => void;

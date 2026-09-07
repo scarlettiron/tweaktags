@@ -24,7 +24,8 @@ export interface EngineOptions {
   mediaUpload?: boolean;
 
   //When true, no TweakTags branding shows anywhere in the UI, including the
-  //admin panel. Use it to ship the editor under your own name. Defaults to false.
+  //admin panel, so the editor ships under your own name. Defaults to true. Set
+  //it to false to show the TweakTags name in the UI.
   whiteLabel?: boolean;
 
   //How the login token is kept. 'cookie' relies on a secure httpOnly cookie set

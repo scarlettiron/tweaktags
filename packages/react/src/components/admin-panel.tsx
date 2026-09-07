@@ -327,27 +327,81 @@ const paginate = (
   };
 };
 
-//Turns a saved record into a short one line preview for the view list.
-const previewOf = (record: ContentRecord | null): string => {
-  if (!record) {
-    return 'No content yet';
+//Content longer than this collapses behind a show more toggle, so one long tag
+//cannot push the rest of the list off the screen.
+const CLAMP_AFTER = 220;
+
+//Shows the saved content of a tag so it can be read before the editor is opened.
+//Media shows the file itself, rich text renders the way it does on the page, and
+//long text collapses to a few lines with a toggle.
+const TagPreview = ({ entry }: { entry: Entry }): ReactElement => {
+  const s = useStyles();
+
+  const [expanded, setExpanded] = useState(false);
+
+  const record = entry.record;
+
+  if (entry.type === 'media') {
+    const url = record?.mediaUrl ?? record?.body ?? '';
+
+    if (url === '') {
+      return <span style={{ opacity: 0.6 }}>No media set</span>;
+    }
+
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+        <img
+          src={url}
+          alt=""
+          style={{ maxWidth: '12rem', maxHeight: '8rem', objectFit: 'contain', borderRadius: '0.4rem' }}
+        />
+        <span style={{ fontFamily: 'monospace', fontSize: '12px', opacity: 0.6, wordBreak: 'break-all' }}>
+          {url}
+        </span>
+      </div>
+    );
   }
 
-  if (record.type === 'media') {
-    return record.mediaUrl || record.body || 'No media set';
+  const body = record?.body ?? '';
+
+  if (body.trim() === '') {
+    return <span style={{ opacity: 0.6 }}>{record ? 'Empty' : 'No content yet'}</span>;
   }
 
-  //Rich content is html, so strip the tags to show readable text.
-  const text = record.body
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
+  const clampable = body.length > CLAMP_AFTER;
+  const bodyStyle: CSSProperties = {
+    opacity: 0.85,
+    overflowWrap: 'anywhere',
+    ...(clampable && !expanded ? { maxHeight: '6rem', overflow: 'hidden' } : {}),
+  };
 
-  if (text === '') {
-    return 'Empty';
-  }
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+      {entry.type === 'rich' ? (
+        //Rich content is saved as html, and the page renders it the same way.
+        <div style={bodyStyle} dangerouslySetInnerHTML={{ __html: body }} />
+      ) : (
+        <div style={{ ...bodyStyle, whiteSpace: 'pre-wrap' }}>{body}</div>
+      )}
 
-  return text.length > 90 ? `${text.slice(0, 90)}...` : text;
+      {clampable ? (
+        <button
+          type="button"
+          style={{
+            ...s.subtleButton,
+            alignSelf: 'flex-start',
+            background: 'none',
+            border: 'none',
+            padding: 0,
+            color: s.button.background as string,
+          }}
+          onClick={() => setExpanded((current) => !current)}
+        >
+          {expanded ? 'Show less' : 'Show more'}
+        </button>
+      ) : null}
+    </div>
+  );
 };
 
 //The full page login shown when nobody is signed in.
@@ -556,14 +610,17 @@ const ViewTab = ({ entries }: { entries: Entry[] }): ReactElement => {
       ) : (
         <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
           {pageItems.map((entry) => (
-            <li key={entry.tag} style={s.listRow}>
-              <span style={{ fontFamily: 'monospace', fontWeight: 600, minWidth: '8rem' }}>
-                {entry.tag}
-              </span>
-              {richText ? <span style={s.badge}>{entry.type}</span> : null}
-              <span style={{ flex: 1, minWidth: '10rem', opacity: 0.75 }}>
-                {previewOf(entry.record)}
-              </span>
+            <li key={entry.tag} style={{ ...s.listRow, flexDirection: 'column', alignItems: 'stretch' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+                <span style={{ fontFamily: 'monospace', fontWeight: 600, minWidth: '8rem' }}>
+                  {entry.tag}
+                </span>
+                {richText ? <span style={s.badge}>{entry.type}</span> : null}
+              </div>
+
+              <div style={{ marginTop: '0.5rem' }}>
+                <TagPreview entry={entry} />
+              </div>
             </li>
           ))}
         </ul>
@@ -808,7 +865,13 @@ const EditTab = ({
                       </button>
                     </div>
                   </div>
-                ) : null}
+                ) : (
+                  //Closed rows show the saved content, so a tag can be read
+                  //before it is opened for editing.
+                  <div style={{ marginTop: '0.6rem' }}>
+                    <TagPreview entry={entry} />
+                  </div>
+                )}
               </li>
             );
           })}

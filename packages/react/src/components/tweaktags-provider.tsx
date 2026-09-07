@@ -45,7 +45,7 @@ export interface TweakTagsProviderProps {
   mediaUpload?: boolean;
 
   //When true, no TweakTags branding shows anywhere in the UI, including the
-  //admin panel. Defaults to false.
+  //admin panel. Defaults to true. Pass false to show the TweakTags name.
   whiteLabel?: boolean;
 
   //How the login token is kept. 'cookie' relies on a secure httpOnly cookie set
@@ -73,7 +73,7 @@ export const TweakTagsProvider = ({
   editInView = true,
   richText = false,
   mediaUpload = false,
-  whiteLabel = false,
+  whiteLabel = true,
   tokenStorage = 'cookie',
   csrfCookieName = 'tweaktags_csrf',
   loadingComponent,
@@ -173,6 +173,7 @@ export const TweakTagsProvider = ({
       setTagType: (tag: string, type: TagType) => engine.setTagType(tag, type),
       listTags: () => engine.listTags(),
       loadContent: (tags: string[]) => engine.loadContent(tags),
+      pageContentFor: (tag: string, type: TagType) => engine.pageContentFor(tag, type),
       uploadMedia: (file: File) => engine.uploadMedia(file),
       saveEdits: () => engine.saveEdits(),
       discardEdits: () => engine.discardEdits(),

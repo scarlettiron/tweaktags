@@ -1,7 +1,32 @@
 {
   "name": "@tweaktags/next",
-  "version": "1.0.0",
-  "description": "Next.js route handler and React bindings for TweakTags",
+  "version": "1.2.0",
+  "description": "Inline CMS and visual content editor for Next.js and React. Edit text, rich text, and media right on the live page. Route handler plus React bindings in one package.",
+  "keywords": [
+    "tweaktags",
+    "tweak-tags",
+    "cms",
+    "inline-cms",
+    "content-management",
+    "inline-editing",
+    "in-place-editing",
+    "editable-content",
+    "typescript",
+    "scarlett scott",
+    "scarlettiron",
+    "visual-editor",
+    "website-editor",
+    "page-editor",
+    "wysiwyg",
+    "rich-text-editor",
+    "static-site",
+    "next",
+    "nextjs",
+    "next.js",
+    "react",
+    "app-router",
+    "route-handler"
+  ],
   "license": "MIT",
   "type": "module",
   "engines": {
@@ -15,9 +40,14 @@
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
     }
   },
   "scripts": {
@@ -39,7 +69,10 @@
     "tsup": "^8.3.5",
     "typescript": "^5.6.3"
   },
-  "author": "Scarlett A. Scott (codescarlett)",
+  "author": {
+    "name": "Scarlett A. Scott",
+    "url": "https://github.com/scarlettiron"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/scarlettiron/tweaktags.git",
