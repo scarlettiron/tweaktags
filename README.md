@@ -1,12 +1,34 @@
 # TweakTags
 
+**A self-hosted inline CMS and visual content editor for Next.js, React, and plain HTML.**
+
+[![npm](https://img.shields.io/npm/v/tweaktags?color=0a84ff)](https://www.npmjs.com/package/tweaktags)
+[![downloads](https://img.shields.io/npm/dm/@tweaktags/core?color=0a84ff)](https://www.npmjs.com/package/@tweaktags/core)
+[![license](https://img.shields.io/npm/l/tweaktags?color=0a84ff)](LICENSE)
+[![types](https://img.shields.io/npm/types/tweaktags?color=0a84ff)](https://www.npmjs.com/package/tweaktags)
+
+Bolt a CMS onto a website you already have, instead of rebuilding the site around one. You mark the
+parts you want to edit with a single attribute, sign in, flip on edit mode, change the content
+directly on the live page, and it saves to your database. Everyone else just sees the saved content.
+
+**[Try the live demo](https://scarlettiron.github.io/tweaktags/demo/)** &mdash; edit a page in your
+browser, no install and no sign up.
+
 **Documentation website: [scarlettiron.github.io/tweaktags](https://scarlettiron.github.io/tweaktags/)**
 
 Built and maintained by [Scarlett A. Scott (@scarlettiron)](https://github.com/scarlettiron).
 
-TweakTags is a lightweight way to make the text and images on your website editable, right on the
-page, without a separate admin dashboard. You mark the parts you want to edit, sign in, flip on
-edit mode, change the content in place, and it saves to your database.
+## Use it when you need
+
+- a CMS for a **Next.js** site that already exists
+- **inline content editing in React**, without a separate admin dashboard
+- **visual website editing** your clients can use, on the live page
+- a **lightweight CMS for a static site** or plain HTML
+- **self-hosted** website content management, on your own database
+- editable **text, rich text, images, and media**
+
+It is deliberately small. There is no dashboard to learn, no content model to design, and no
+rebuild of your site: one attribute on an element makes that element editable.
 
 This guide walks you through setting it up in a Next.js app, step by step. If you have never done
 this kind of thing before, that is fine. Follow each step in order and copy the code exactly.
@@ -551,6 +573,7 @@ These are the settings you can put in `tweaktags.config.ts`.
 | `database.connectionString` | yes if no host | The one line connection string, for the server databases.  |
 | `database.host` and `database.database` | yes if no string | The separate parts, if you do not use a connection string. |
 | `database.filename`       | sqlite only | The path to the sqlite database file.                          |
+| `database.pool`           | no       | Connection pool tuning for Postgres, MySQL, and MariaDB: `max`, `min`, `idleTimeoutMillis`, `connectionTimeoutMillis`. Leave it out for the driver defaults. Matters on serverless, see [Serverless and connection pools](#serverless-and-connection-pools). |
 | `auth.provider`           | yes      | The login type. Use `'jwt'`.                                      |
 | `auth.jwtSecret`          | yes      | A secret string of at least 16 characters that secures logins.   |
 | `auth.accessTtlSeconds`   | no       | How long the short access token lasts. Defaults to 15 minutes.   |
@@ -758,6 +781,68 @@ Run these from the root of your app.
 | `npx tweaktags list-tags`                                      | Lists every tag in the database.        |
 | `npx tweaktags list-users`                                     | Lists every user and their role.        |
 | `npx tweaktags help`                                           | Shows the available commands.          |
+
+## Supported database versions
+
+Every version in this table runs the full adapter test suite in CI on each pull
+request, against a real server of that version. The tested list and the supported
+list are deliberately the same list.
+
+| Database | Tested versions | Notes |
+| --- | --- | --- |
+| **Postgres** | 13, 14, 15, 16, 17, 18 | 13 is past upstream end of life; take 14 or newer for a new install |
+| **MySQL** | 8.0, 8.4 | 5.7 works but reached end of life in October 2023 |
+| **MariaDB** | 10.6, 10.11, 11.4, 11.8 | 10.5 works but is past end of life |
+| **SQLite** | whatever `better-sqlite3` bundles | Not a version you choose |
+
+## Serverless and connection pools
+
+On a normal Node server there is one process, one pool, and nothing to think about. Leave
+`database.pool` out entirely and the driver's defaults apply.
+
+Serverless is different. Each instance that wakes up builds its own pool, so the connection count is
+per instance, not per app:
+
+```
+50 warm instances  ×  10 connections each  =  500 connections
+```
+
+Postgres refuses new connections past `max_connections`, which is often 100 on a small managed
+instance, so the app starts failing to connect under exactly the traffic that scaled it up. Keep
+each pool small, and let a sleeping instance drop its connections:
+
+```ts
+export default defineConfig({
+  database: {
+    provider: 'postgres',
+    connectionString: process.env.DATABASE_URL,
+    pool: {
+      // Each instance handles one request at a time, so it needs very few.
+      max: 2,
+      // Let a cold instance release connections rather than holding them.
+      idleTimeoutMillis: 10_000,
+      // Fail fast instead of paying for a request that hangs, then times out.
+      connectionTimeoutMillis: 5_000,
+    },
+  },
+  // ...the rest of your config
+});
+```
+
+| Setting | What it does | Postgres | MySQL / MariaDB |
+| --- | --- | --- | --- |
+| `max` | Most connections one pool opens | yes | yes |
+| `min` | Connections kept open when idle | yes | ignored, the driver has no minimum |
+| `idleTimeoutMillis` | How long an idle connection is kept | yes | yes |
+| `connectionTimeoutMillis` | How long to wait for a connection | yes | yes |
+
+Every field is optional, and anything you leave out keeps the driver default rather than being
+overwritten. SQLite has a single file handle and no pool, so it ignores this block. Values are
+checked when the config is resolved, so a typo fails at startup with a clear message instead of
+surfacing later as a connection error.
+
+If your host offers a connection pooler, such as PgBouncer or a provider's pooled connection
+string, use it and keep `max` small as well. That is what it is for.
 
 ## Troubleshooting
 
@@ -989,7 +1074,7 @@ of `init`.
 
 | Package            | Runs on  | What it does                                                          |
 | ------------------ | -------- | -------------------------------------------------------------------- |
-| `tweaktags` / `tweak-tags` | Both | The unscoped names, for anyone who types `npm install tweaktags`. Each installs and re-exports `@tweaktags/core` |
+| `tweaktags`             | Both     | The unscoped name, for anyone who types `npm install tweaktags`. Installs and re-exports `@tweaktags/core` |
 | `@tweaktags/core`       | Both     | Shared types, the config helper and loader, the adapter interfaces, and the request handler |
 | `@tweaktags/server`     | Server   | A framework agnostic Node backend handler you mount in your own backend |
 | `@tweaktags/db-postgres` | Server  | The Postgres database adapter and migrations                        |

@@ -1,0 +1,50 @@
+# Databases for the adapter contract tests.
+#
+#   docker compose -f docker-compose.test.yml up -d
+#   pnpm test:adapters
+#   docker compose -f docker-compose.test.yml down -v
+#
+# The host ports are deliberately not the defaults, so these cannot collide with
+# a Postgres or MySQL you already run, or with ddev's containers. Nothing here
+# is meant to outlive a test run: the data lives in the container only.
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: tweaktags
+      POSTGRES_PASSWORD: tweaktags
+      POSTGRES_DB: tweaktags_test
+    ports:
+      - '55432:5432'
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U tweaktags -d tweaktags_test']
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  mysql:
+    image: mysql:8
+    environment:
+      MYSQL_ROOT_PASSWORD: tweaktags
+      MYSQL_DATABASE: tweaktags_test
+    ports:
+      - '33306:3306'
+    healthcheck:
+      test: ['CMD-SHELL', 'mysqladmin ping -h 127.0.0.1 -ptweaktags --silent']
+      interval: 3s
+      timeout: 3s
+      retries: 30
+
+  mariadb:
+    image: mariadb:11
+    environment:
+      MARIADB_ROOT_PASSWORD: tweaktags
+      MARIADB_DATABASE: tweaktags_test
+    ports:
+      - '33307:3306'
+    healthcheck:
+      test: ['CMD-SHELL', 'mariadb-admin ping -h 127.0.0.1 -ptweaktags --silent']
+      interval: 3s
+      timeout: 3s
+      retries: 30

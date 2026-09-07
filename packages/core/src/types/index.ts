@@ -70,6 +70,33 @@ export type DatabaseProvider = 'postgres' | 'mysql' | 'mariadb' | 'sqlite';
 //The database connection settings.
 //For servers, either give a full connection string or the individual parts.
 //For sqlite, give a filename instead.
+//Connection pool settings for the databases that pool, which is Postgres,
+//MySQL, and MariaDB. Every field is optional, and leaving the whole block out
+//keeps the driver's own defaults, which is what a long running server wants.
+//
+//It matters on serverless hosts. Each instance that wakes up builds its own
+//pool, so fifty warm instances holding ten connections each is five hundred
+//connections at the database, and Postgres refuses new ones past max_connections.
+//A small max, and an idle timeout short enough that a sleeping instance lets go
+//of its connections, is the usual fix: max 2, idleTimeoutMillis 10_000, and
+//connectionTimeoutMillis 5_000 is a reasonable starting point.
+//SQLite has a single file handle and no pool, so it ignores this.
+export interface DatabasePoolConfig {
+  //The most connections one pool will open. Driver default is 10.
+  max?: number;
+
+  //Connections to keep open when idle. Only Postgres and MySQL honour it.
+  min?: number;
+
+  //How long an idle connection is kept before it is closed, in milliseconds.
+  idleTimeoutMillis?: number;
+
+  //How long to wait for a connection before giving up, in milliseconds. Without
+  //it a request can hang instead of failing, which on serverless means paying
+  //for the wait and then timing out anyway.
+  connectionTimeoutMillis?: number;
+}
+
 export interface DatabaseConfig {
   provider: DatabaseProvider;
   connectionString?: string;
@@ -81,6 +108,9 @@ export interface DatabaseConfig {
   ssl?: boolean;
   //The path to the database file, used only by sqlite.
   filename?: string;
+
+  //Optional connection pool tuning. Leave it out for the driver defaults.
+  pool?: DatabasePoolConfig;
 }
 
 //Where the browser keeps the login token.

@@ -1,17 +1,38 @@
 {
   "name": "@tweaktags/auth-jwt",
-  "version": "1.2.0",
-  "description": "Email and password authentication for TweakTags, the inline CMS for React and Next.js. Issues rotating JSON Web Tokens with bcrypt hashed passwords.",
+  "version": "1.3.0",
+  "description": "Email and password authentication for TweakTags, the self-hosted inline CMS for Next.js and React. Rotating JSON Web Tokens with bcrypt hashed passwords.",
   "keywords": [
     "tweaktags",
     "tweak-tags",
     "cms",
     "inline-cms",
+    "visual-cms",
+    "self-hosted-cms",
+    "lightweight-cms",
+    "static-site-cms",
     "content-management",
+    "content-editor",
+    "website-editor",
+    "website-cms",
+    "page-editor",
     "inline-editing",
     "in-place-editing",
-    "editable-content",
-    "typescript",
+    "live-editing",
+    "visual-editor",
+    "wysiwyg",
+    "nextjs",
+    "next.js",
+    "nextjs-cms",
+    "react",
+    "react-cms",
+    "javascript",
+    "vanilla-js",
+    "rich-text",
+    "rich-text-editor",
+    "image-editor",
+    "media",
+    "tweak tags",
     "scarlett scott",
     "scarlettiron",
     "auth",
@@ -19,7 +40,8 @@
     "jwt",
     "json-web-token",
     "bcrypt",
-    "login"
+    "login",
+    "self-hosted"
   ],
   "license": "MIT",
   "type": "module",
@@ -42,7 +64,8 @@
         "types": "./dist/index.d.cts",
         "default": "./dist/index.cjs"
       }
-    }
+    },
+    "./package.json": "./package.json"
   },
   "scripts": {
     "build": "tsup",

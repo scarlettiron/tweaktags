@@ -1,12 +1,10 @@
 # @tweaktags/storage-s3
 
-Optional media uploads to S3 or any S3 compatible store, using short lived presigned uploads.
+Image and media uploads for TweakTags, the self-hosted inline CMS for Next.js, React, and plain HTML.
+
+Lets editors upload an image instead of pasting a url. Files go straight from the browser to S3, or any S3 compatible store, through a short lived presigned upload.
 
 Built and maintained by [Scarlett A. Scott (@scarlettiron)](https://github.com/scarlettiron).
-
-Part of **[TweakTags](https://github.com/scarlettiron/tweaktags)**, a lightweight edit in place content layer for React, Next,
-and plain HTML sites. Mark any element with a `data-tweaktags-*` attribute, and signed in editors
-change its text, rich text, or media right on the live page. Everyone else just sees the saved content.
 
 **Full documentation and guides:** https://scarlettiron.github.io/tweaktags/
 

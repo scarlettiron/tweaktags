@@ -1,12 +1,18 @@
 # tweaktags
 
-The unscoped name for **TweakTags**. It installs and re-exports [@tweaktags/core](https://github.com/scarlettiron/tweaktags/tree/main/packages/core), so `npm install tweaktags` lands on the real project.
+A self-hosted inline CMS and visual content editor for Next.js, React, and plain HTML.
+
+Bolt it onto a website you already have, instead of rebuilding the site around a CMS. Mark an element with one attribute, and signed in editors change its text, rich text, or images directly on the live page. Everyone else just sees the saved content.
+
+This is the unscoped name, and the front door to the project. It installs and re-exports
+[@tweaktags/core](https://www.npmjs.com/package/@tweaktags/core), and the table below says which
+package you actually want.
+
+**The whole family on npm:** [all @tweaktags packages](https://www.npmjs.com/search?q=%40tweaktags)
+&middot; **Source:** [github.com/scarlettiron/tweaktags](https://github.com/scarlettiron/tweaktags)
+&middot; **Docs:** [scarlettiron.github.io/tweaktags](https://scarlettiron.github.io/tweaktags/)
 
 Built and maintained by [Scarlett A. Scott (@scarlettiron)](https://github.com/scarlettiron).
-
-Part of **[TweakTags](https://github.com/scarlettiron/tweaktags)**, a lightweight edit in place content layer for React, Next,
-and plain HTML sites. Mark any element with a `data-tweaktags-*` attribute, and signed in editors
-change its text, rich text, or media right on the live page. Everyone else just sees the saved content.
 
 **Full documentation and guides:** https://scarlettiron.github.io/tweaktags/
 

@@ -1,12 +1,10 @@
 # @tweaktags/react
 
-React provider, components, and hooks for TweakTags. Pair it with a backend from @tweaktags/next or @tweaktags/server.
+A self-hosted inline CMS and visual content editor for React.
+
+Let authenticated editors change text, rich text, images, and other website content directly on the live React app, without a separate CMS dashboard. Pair it with a backend from @tweaktags/next or @tweaktags/server.
 
 Built and maintained by [Scarlett A. Scott (@scarlettiron)](https://github.com/scarlettiron).
-
-Part of **[TweakTags](https://github.com/scarlettiron/tweaktags)**, a lightweight edit in place content layer for React, Next,
-and plain HTML sites. Mark any element with a `data-tweaktags-*` attribute, and signed in editors
-change its text, rich text, or media right on the live page. Everyone else just sees the saved content.
 
 **Full documentation and guides:** https://scarlettiron.github.io/tweaktags/
 

@@ -5,6 +5,6 @@
 //Contributors:
 //Scarlett A. Scott (codescarlett)
 
-export { MysqlAdapter } from './mysql-adapter.js';
+export { MysqlAdapter, buildPoolOptions, buildPoolOptionsFromUri } from './mysql-adapter.js';
 export { MIGRATIONS } from './migrations/migrations.js';
 export type { Migration } from './migrations/migrations.js';

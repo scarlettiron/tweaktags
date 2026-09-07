@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>TweakTags live demo &mdash; edit this page in your browser</title>
+    <meta
+      name="description"
+      content="A live, no signup demo of TweakTags, the self-hosted inline CMS for Next.js, React, and plain HTML. Sign in and edit the text and images on this page."
+    />
+    <meta name="author" content="Scarlett A. Scott" />
+    <link rel="canonical" href="https://scarlettiron.github.io/tweaktags/demo/" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230e0f13'/%3E%3Ccircle cx='16' cy='16' r='7' fill='%230a84ff'/%3E%3C/svg%3E"
+    />
+
+    <style>
+      :root {
+        --bg: #0e0f13;
+        --surface: #14151a;
+        --raised: #1e2028;
+        --border: #2b2d38;
+        --text: #f3f4f6;
+        --muted: #9aa0ac;
+        --primary: #0a84ff;
+        color-scheme: dark;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font: 16px/1.6 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+      }
+
+      .wrap {
+        max-width: 940px;
+        margin: 0 auto;
+        padding: 2rem 1.25rem 6rem;
+      }
+
+      header.site {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        flex-wrap: wrap;
+        padding: 1rem 1.25rem;
+        border-bottom: 1px solid var(--border);
+        background: var(--surface);
+      }
+
+      header.site a {
+        color: var(--text);
+        text-decoration: none;
+        margin-left: 1rem;
+      }
+
+      header.site a:hover {
+        color: var(--primary);
+      }
+
+      .brand {
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+
+      .dot {
+        width: 0.65rem;
+        height: 0.65rem;
+        border-radius: 50%;
+        background: var(--primary);
+      }
+
+      h1 {
+        font-size: clamp(1.7rem, 4vw, 2.4rem);
+        line-height: 1.2;
+        margin: 2rem 0 0.75rem;
+      }
+
+      .lede {
+        color: var(--muted);
+        font-size: 1.05rem;
+        max-width: 62ch;
+      }
+
+      .steps {
+        display: grid;
+        gap: 0.75rem;
+        margin: 1.75rem 0;
+        padding: 1.25rem 1.25rem 1.25rem 2.5rem;
+        border: 1px solid var(--border);
+        border-radius: 0.75rem;
+        background: var(--surface);
+      }
+
+      .steps li {
+        padding-left: 0.25rem;
+      }
+
+      .creds {
+        display: inline-block;
+        margin-top: 0.5rem;
+        padding: 0.5rem 0.75rem;
+        border-radius: 0.5rem;
+        border: 1px solid var(--border);
+        background: var(--raised);
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 0.9rem;
+      }
+
+      .note {
+        border-left: 3px solid var(--primary);
+        padding: 0.75rem 1rem;
+        border-radius: 0.4rem;
+        background: var(--surface);
+        color: var(--muted);
+        margin: 1.5rem 0;
+      }
+
+      /*The pretend customer website that the editing happens on.*/
+      .site-demo {
+        margin: 2rem 0;
+        border: 1px solid var(--border);
+        border-radius: 0.9rem;
+        overflow: hidden;
+        background: #fff;
+        color: #14151a;
+      }
+
+      .site-demo .chrome {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 0.6rem 0.9rem;
+        background: var(--raised);
+        border-bottom: 1px solid var(--border);
+      }
+
+      .site-demo .chrome span {
+        width: 0.6rem;
+        height: 0.6rem;
+        border-radius: 50%;
+        background: #4a4d5a;
+      }
+
+      .site-demo .chrome small {
+        margin-left: 0.6rem;
+        color: var(--muted);
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 0.75rem;
+      }
+
+      .site-demo .banner {
+        height: 190px;
+        background-color: #dfe3ea;
+        background-size: cover;
+        background-position: center;
+      }
+
+      .site-demo .body {
+        padding: 1.5rem 1.75rem 2rem;
+      }
+
+      .site-demo h2 {
+        margin: 0 0 0.5rem;
+        font-size: 1.9rem;
+        color: #14151a;
+      }
+
+      .site-demo p {
+        margin: 0 0 1rem;
+        color: #3c4150;
+      }
+
+      .site-demo .cta {
+        display: inline-block;
+        padding: 0.6rem 1.1rem;
+        border-radius: 0.5rem;
+        background: var(--primary);
+        color: #fff;
+        font-weight: 600;
+        text-decoration: none;
+      }
+
+      footer {
+        border-top: 1px solid var(--border);
+        color: var(--muted);
+        padding: 1.5rem 1.25rem;
+        text-align: center;
+      }
+
+      a {
+        color: var(--primary);
+      }
+    </style>
+  </head>
+
+  <body>
+    <header class="site">
+      <span class="brand"><span class="dot"></span> TweakTags</span>
+      <span>
+        <a href="../">Documentation</a>
+        <a href="https://www.npmjs.com/package/tweaktags">npm</a>
+        <a href="https://github.com/scarlettiron/tweaktags">GitHub</a>
+      </span>
+    </header>
+
+    <div class="wrap">
+      <h1>Edit this page, right now.</h1>
+
+      <p class="lede">
+        This is a working copy of TweakTags running entirely in your browser. There is no server and
+        no sign up: the backend is a small script that keeps the content in memory, so nothing you do
+        here leaves this tab, and a refresh puts everything back.
+      </p>
+
+      <ol class="steps">
+        <li>Click <strong>Sign in</strong> in the bar at the bottom right.</li>
+        <li>
+          Use the demo account:
+          <br />
+          <span class="creds">admin@example.com &nbsp;/&nbsp; password</span>
+        </li>
+        <li>Click <strong>Edit page</strong>. The editable spots pick up a dashed outline.</li>
+        <li>Click the heading or the paragraph below and type. Try the toolbar on the rich text.</li>
+        <li>Click <strong>Save</strong>, then reload the page to see it come back from the store.</li>
+      </ol>
+
+      <div class="site-demo">
+        <div class="chrome">
+          <span></span><span></span><span></span>
+          <small>acme-lumber.example.com</small>
+        </div>
+
+        <!--Each element below is editable purely because of its data-tweaktags-*
+            attribute. Nothing else on this page knows about TweakTags. The tag
+            names match the ones the demo backend seeds.-->
+        <div class="banner" data-tweaktags-hero-banner></div>
+
+        <div class="body">
+          <h2 data-tweaktags-hero-title>Acme Lumber</h2>
+          <p data-tweaktags-hero-subtitle>
+            Hardwood flooring, decking, and custom millwork since 1974.
+          </p>
+          <a class="cta" href="#">Request a quote</a>
+        </div>
+      </div>
+
+      <div class="note">
+        <strong>What just happened.</strong> The heading, the paragraph, and the banner image are
+        ordinary HTML elements that each carry a <code>data-tweaktags-*</code> attribute. TweakTags crawled the page, loaded
+        the saved content, and made those elements editable for the signed in user. Everyone else
+        sees the saved content and nothing else. That is the whole idea: you bolt it onto a site you
+        already have, instead of rebuilding the site around a CMS.
+      </div>
+
+      <p>
+        Ready to put it on your own site? The
+        <a href="../#quickstart">quick start</a> takes about ten minutes, or install the front door
+        package with <code>npm install tweaktags</code>.
+      </p>
+    </div>
+
+    <footer>
+      TweakTags is open source under the MIT License. Created and maintained by
+      <a href="https://github.com/scarlettiron">Scarlett A. Scott (@scarlettiron)</a>.
+    </footer>
+
+    <!--A tiny in memory backend, so the editor has something real to talk to with
+        no server running. Copied in from examples/vanilla-demo at deploy time.-->
+    <script src="./mock-api.js"></script>
+    <!--The published browser build of @tweaktags/vanillajs, copied in at deploy
+        time from the package's dist, so this page always demos the current code.-->
+    <script src="./tweaktags.global.js"></script>
+    <script>
+      TweakTags.init({ apiBasePath: '/api/tweaktags', richText: true, mediaUpload: false });
+    </script>
+  </body>
+</html>

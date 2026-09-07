@@ -52,8 +52,32 @@ const sslModeOf = (connectionString: string): string | null => {
 //When ssl is false but the string says sslmode=require, or the other way round,
 //the two disagree and one of them silently wins. The config is the explicit
 //choice, so it decides, and the caller is told what happened.
-const buildPoolConfig = (config: DatabaseConfig, warn?: (message: string) => void): PoolConfig => {
+//Only the pool fields the config actually set are passed on, so anything left
+//out keeps pg's own default rather than being overwritten with undefined.
+const poolLimits = (config: DatabaseConfig): PoolConfig => {
+  const pool = config.pool;
+
+  if (!pool) {
+    return {};
+  }
+
+  //pg happens to use these exact names, so this is a filter rather than a map.
+  return {
+    ...(pool.max !== undefined ? { max: pool.max } : {}),
+    ...(pool.min !== undefined ? { min: pool.min } : {}),
+    ...(pool.idleTimeoutMillis !== undefined ? { idleTimeoutMillis: pool.idleTimeoutMillis } : {}),
+    ...(pool.connectionTimeoutMillis !== undefined
+      ? { connectionTimeoutMillis: pool.connectionTimeoutMillis }
+      : {}),
+  };
+};
+
+export const buildPoolConfig = (
+  config: DatabaseConfig,
+  warn?: (message: string) => void,
+): PoolConfig => {
   const ssl = config.ssl ? { rejectUnauthorized: false } : undefined;
+  const limits = poolLimits(config);
 
   if (config.connectionString) {
     const mode = sslModeOf(config.connectionString);
@@ -74,7 +98,7 @@ const buildPoolConfig = (config: DatabaseConfig, warn?: (message: string) => voi
       );
     }
 
-    return { connectionString: config.connectionString, ssl };
+    return { connectionString: config.connectionString, ssl, ...limits };
   }
 
   return {
@@ -84,6 +108,7 @@ const buildPoolConfig = (config: DatabaseConfig, warn?: (message: string) => voi
     password: config.password,
     database: config.database,
     ssl,
+    ...limits,
   };
 };
 

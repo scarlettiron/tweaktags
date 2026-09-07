@@ -1,12 +1,10 @@
 # @tweaktags/browser
 
-The framework agnostic browser engine that powers TweakTags editing.
+The browser engine behind TweakTags, the self-hosted inline CMS for Next.js, React, and plain HTML.
+
+The framework agnostic runtime that crawls the page for editable elements, loads saved content, tracks the signed in editor, and performs the in place editing. Both the React and the vanilla UIs sit on top of it.
 
 Built and maintained by [Scarlett A. Scott (@scarlettiron)](https://github.com/scarlettiron).
-
-Part of **[TweakTags](https://github.com/scarlettiron/tweaktags)**, a lightweight edit in place content layer for React, Next,
-and plain HTML sites. Mark any element with a `data-tweaktags-*` attribute, and signed in editors
-change its text, rich text, or media right on the live page. Everyone else just sees the saved content.
 
 **Full documentation and guides:** https://scarlettiron.github.io/tweaktags/
 

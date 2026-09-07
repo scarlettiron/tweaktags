@@ -1,12 +1,10 @@
 # @tweaktags/core
 
-Shared types, the config helper, the request handler, and adapter interfaces for TweakTags.
+The shared core of TweakTags, the self-hosted inline CMS for Next.js, React, and plain HTML.
+
+Types, the config helper and loader, the adapter interfaces, and the request handling rules every other package builds on.
 
 Built and maintained by [Scarlett A. Scott (@scarlettiron)](https://github.com/scarlettiron).
-
-Part of **[TweakTags](https://github.com/scarlettiron/tweaktags)**, a lightweight edit in place content layer for React, Next,
-and plain HTML sites. Mark any element with a `data-tweaktags-*` attribute, and signed in editors
-change its text, rich text, or media right on the live page. Everyone else just sees the saved content.
 
 **Full documentation and guides:** https://scarlettiron.github.io/tweaktags/
 

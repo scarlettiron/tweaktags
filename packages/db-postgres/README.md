@@ -1,12 +1,10 @@
 # @tweaktags/db-postgres
 
-The Postgres database adapter and migrations for TweakTags.
+The Postgres adapter for TweakTags, the self-hosted inline CMS for Next.js, React, and plain HTML.
+
+Stores your editable content in Postgres, and owns the migrations that create the tables.
 
 Built and maintained by [Scarlett A. Scott (@scarlettiron)](https://github.com/scarlettiron).
-
-Part of **[TweakTags](https://github.com/scarlettiron/tweaktags)**, a lightweight edit in place content layer for React, Next,
-and plain HTML sites. Mark any element with a `data-tweaktags-*` attribute, and signed in editors
-change its text, rich text, or media right on the live page. Everyone else just sees the saved content.
 
 **Full documentation and guides:** https://scarlettiron.github.io/tweaktags/
 
@@ -61,6 +59,51 @@ database is usually the opposite and refuses a connection without SSL.
 Set `ssl: true` for a hosted database, and leave it unset with no `sslmode` parameter for a local
 one. When the config and the connection string disagree, TweakTags says so at startup rather than
 letting one of them silently win, and explains the failure in the log if the connection then fails.
+
+## Supported Postgres versions
+
+Every version below runs the full adapter contract in CI on each pull request,
+so the tested list and the supported list are the same list.
+
+| Version | Status |
+| --- | --- |
+| 18 | Tested |
+| 17 | Tested |
+| 16 | Tested |
+| 15 | Tested |
+| 14 | Tested |
+| 13 | Tested, but past its upstream end of life (November 2025) |
+| 12 and older | Not tested. The migrations need `ADD COLUMN IF NOT EXISTS` (9.6) and `ON CONFLICT` (9.5), so they will probably work, but nothing checks that |
+
+If you are choosing, take 14 or newer: 13 still works and is tested here, but it
+no longer gets fixes from upstream.
+
+## Connection pooling
+
+On a normal Node server there is one process and one pool, so there is nothing to configure. Leave
+`database.pool` out and pg's defaults apply.
+
+On serverless, every instance that wakes up builds its own pool, so the connection count multiplies
+by the number of warm instances: **50 instances × 10 connections = 500 connections**, which is more
+than a small managed database will accept. Keep each pool small:
+
+```ts
+database: {
+  provider: 'postgres',
+  connectionString: process.env.DATABASE_URL,
+  pool: {
+    max: 2,                        // each instance serves one request at a time
+    idleTimeoutMillis: 10_000,     // let a sleeping instance let go
+    connectionTimeoutMillis: 5_000, // fail fast instead of hanging
+  },
+},
+```
+
+All four settings apply here: `max`, `min`, `idleTimeoutMillis`, and `connectionTimeoutMillis`.
+
+Every field is optional, and anything you leave out keeps the driver default rather than being
+overwritten with a blank. Values are checked when the config is resolved, so a typo fails at startup
+with a clear message instead of turning up later as a connection error.
 
 ## Requirements
 

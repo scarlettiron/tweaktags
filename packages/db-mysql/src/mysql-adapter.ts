@@ -30,14 +30,42 @@ import { DUPLICATE_ENTRY, MIGRATIONS_TABLE } from './constants/index.js';
 import { MIGRATIONS } from './migrations/migrations.js';
 import { mapContentRow, mapUserRow } from './utilities/row-mappers.js';
 
+//mysql2 spells the pool settings differently from the shared config, and has no
+//idea of a minimum pool size, so "min" has nothing to map onto here and is left
+//to the Postgres adapter. Only the fields that were set are passed through, so
+//the rest keep the driver defaults.
+const poolLimits = (config: DatabaseConfig): PoolOptions => {
+  const pool = config.pool;
+
+  if (!pool) {
+    return {};
+  }
+
+  return {
+    ...(pool.max !== undefined ? { connectionLimit: pool.max } : {}),
+    ...(pool.idleTimeoutMillis !== undefined ? { idleTimeout: pool.idleTimeoutMillis } : {}),
+    ...(pool.connectionTimeoutMillis !== undefined
+      ? { connectTimeout: pool.connectionTimeoutMillis }
+      : {}),
+  };
+};
+
 //Builds the pool options from the separate connection parts.
-const buildPoolOptions = (config: DatabaseConfig): PoolOptions => ({
+export const buildPoolOptions = (config: DatabaseConfig): PoolOptions => ({
   host: config.host,
   port: config.port,
   user: config.user,
   password: config.password,
   database: config.database,
   ssl: config.ssl ? { rejectUnauthorized: false } : undefined,
+  ...poolLimits(config),
+});
+
+//The same, for a connection string. mysql2 takes the string as a "uri" field,
+//which is what lets the pool settings ride along with it.
+export const buildPoolOptionsFromUri = (config: DatabaseConfig): PoolOptions => ({
+  uri: config.connectionString,
+  ...poolLimits(config),
 });
 
 //Reads a MySQL error code in a type safe way.
@@ -55,10 +83,10 @@ export class MysqlAdapter implements DbAdapter {
   private readonly pool: Pool;
 
   constructor(config: DatabaseConfig) {
-    //A connection string and an options object use different overloads,
-    //so we call the right one for each case.
+    //Both paths go through the options object, so pool settings apply whether
+    //the config used a connection string or the separate parts.
     this.pool = config.connectionString
-      ? mysql.createPool(config.connectionString)
+      ? mysql.createPool(buildPoolOptionsFromUri(config))
       : mysql.createPool(buildPoolOptions(config));
   }
 
@@ -67,7 +95,7 @@ export class MysqlAdapter implements DbAdapter {
       `CREATE TABLE IF NOT EXISTS \`${MIGRATIONS_TABLE}\` (
         id VARCHAR(255) PRIMARY KEY,
         applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-      );`,
+      ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;`,
     );
 
     const [appliedRows] = await this.pool.query<RowDataPacket[]>(

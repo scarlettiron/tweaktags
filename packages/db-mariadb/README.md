@@ -1,12 +1,10 @@
 # @tweaktags/db-mariadb
 
-A thin MariaDB alias that installs and re-exports @tweaktags/db-mysql.
+The MariaDB adapter for TweakTags, the self-hosted inline CMS for Next.js, React, and plain HTML.
+
+A thin package that installs and re-exports @tweaktags/db-mysql, since MariaDB speaks the MySQL protocol.
 
 Built and maintained by [Scarlett A. Scott (@scarlettiron)](https://github.com/scarlettiron).
-
-Part of **[TweakTags](https://github.com/scarlettiron/tweaktags)**, a lightweight edit in place content layer for React, Next,
-and plain HTML sites. Mark any element with a `data-tweaktags-*` attribute, and signed in editors
-change its text, rich text, or media right on the live page. Everyone else just sees the saved content.
 
 **Full documentation and guides:** https://scarlettiron.github.io/tweaktags/
 
@@ -55,6 +53,47 @@ All connection options are listed in the [config type reference](https://github.
 - **Documentation and guides:** https://scarlettiron.github.io/tweaktags/
 - **Every config setting:** [config type reference](https://github.com/scarlettiron/tweaktags/blob/main/packages/core/src/types/index.ts)
 - **Source and issues:** [github.com/scarlettiron/tweaktags](https://github.com/scarlettiron/tweaktags)
+
+## Supported MariaDB versions
+
+MariaDB speaks the MySQL protocol, so this package re-exports
+[@tweaktags/db-mysql](https://www.npmjs.com/package/@tweaktags/db-mysql) and
+shares its testing. Every version below runs the full adapter contract in CI on
+each pull request.
+
+| Version | Status |
+| --- | --- |
+| 11.8, 11.4 | Tested |
+| 10.11, 10.6 | Tested |
+| 10.5 | Works, past its end of life |
+| 10.4 and older | Not tested |
+
+## Connection pooling
+
+On a normal Node server there is one process and one pool, so there is nothing to configure. Leave
+`database.pool` out and mysql2's defaults apply.
+
+On serverless, every instance that wakes up builds its own pool, so the connection count multiplies
+by the number of warm instances: **50 instances × 10 connections = 500 connections**, which is more
+than a small managed database will accept. Keep each pool small:
+
+```ts
+database: {
+  provider: 'mariadb',
+  connectionString: process.env.DATABASE_URL,
+  pool: {
+    max: 2,                        // each instance serves one request at a time
+    idleTimeoutMillis: 10_000,     // let a sleeping instance let go
+    connectionTimeoutMillis: 5_000, // fail fast instead of hanging
+  },
+},
+```
+
+`max`, `idleTimeoutMillis`, and `connectionTimeoutMillis` apply. `min` is ignored, because mysql2 has no minimum pool size to map it onto.
+
+Every field is optional, and anything you leave out keeps the driver default rather than being
+overwritten with a blank. Values are checked when the config is resolved, so a typo fails at startup
+with a clear message instead of turning up later as a connection error.
 
 ## Requirements
 

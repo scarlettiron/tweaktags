@@ -1,12 +1,10 @@
 # @tweaktags/cli
 
-The tweaktags command line tool for migrations, users, and inspecting content.
+The command line tool for TweakTags, the self-hosted inline CMS for Next.js, React, and plain HTML.
+
+Creates the database tables and your first admin user, and lists the tags and users you already have.
 
 Built and maintained by [Scarlett A. Scott (@scarlettiron)](https://github.com/scarlettiron).
-
-Part of **[TweakTags](https://github.com/scarlettiron/tweaktags)**, a lightweight edit in place content layer for React, Next,
-and plain HTML sites. Mark any element with a `data-tweaktags-*` attribute, and signed in editors
-change its text, rich text, or media right on the live page. Everyone else just sees the saved content.
 
 **Full documentation and guides:** https://scarlettiron.github.io/tweaktags/
 

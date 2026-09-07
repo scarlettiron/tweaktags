@@ -1,0 +1,233 @@
+name: CI
+
+# Runs on every pull request, and on the branches work lands on. Publishing
+# lives at the bottom of this file rather than in its own workflow, so it can
+# depend on these jobs: nothing reaches npm unless all of them pass.
+on:
+  pull_request:
+  push:
+    branches: [main, staging]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  # A newer push makes an older branch run irrelevant, but a run on main may be
+  # publishing, and cancelling that half way is how a release ends up partly on
+  # npm. So only cancel outside main.
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+permissions:
+  contents: read
+
+jobs:
+  # Everything that needs no database. This is the gate for a pull request.
+  build:
+    name: Build, typecheck and test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      # The build has to come first: the type declarations it emits are what
+      # the other packages typecheck against, and the demo test reads the
+      # browser bundle it produces.
+      - name: Build
+        run: pnpm build
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Test
+        run: pnpm test
+
+  # The same adapter contract, run against real databases. Split from the job
+  # above so a failure here is obviously a database problem, not a code one.
+  adapters:
+    name: ${{ matrix.image }}
+    runs-on: ubuntu-latest
+    strategy:
+      # One database failing should not hide what the others do.
+      fail-fast: false
+      # Every major version the project claims to support, oldest to newest.
+      # When a version is added here it has to pass before anything publishes,
+      # which is the point: the support list and the tested list are the same
+      # list. Postgres 13 is past upstream end of life and kept because plenty
+      # of installs still run it; drop the leg when that stops being true.
+      matrix:
+        include:
+          - database: postgres
+            image: postgres:13
+          - database: postgres
+            image: postgres:14
+          - database: postgres
+            image: postgres:15
+          - database: postgres
+            image: postgres:16
+          - database: postgres
+            image: postgres:17
+          - database: postgres
+            image: postgres:18
+          - database: mysql
+            image: mysql:8.0
+          - database: mysql
+            image: mysql:8.4
+          - database: mariadb
+            image: mariadb:10.6
+          - database: mariadb
+            image: mariadb:10.11
+          - database: mariadb
+            image: mariadb:11.4
+          - database: mariadb
+            image: mariadb:11.8
+
+    services:
+      database:
+        image: ${{ matrix.image }}
+        # MariaDB and MySQL both read the MYSQL_* names, and Postgres ignores
+        # them, so one block covers every image in the matrix.
+        env:
+          # Postgres reads the first two, MySQL and MariaDB the rest. Setting
+          # all of them keeps one service block working for every image.
+          POSTGRES_USER: tweaktags
+          POSTGRES_PASSWORD: tweaktags
+          POSTGRES_DB: tweaktags_test
+          MYSQL_ROOT_PASSWORD: tweaktags
+          MYSQL_DATABASE: tweaktags_test
+          MYSQL_USER: tweaktags
+          MYSQL_PASSWORD: tweaktags
+          MARIADB_ROOT_PASSWORD: tweaktags
+          MARIADB_DATABASE: tweaktags_test
+          MARIADB_USER: tweaktags
+          MARIADB_PASSWORD: tweaktags
+        ports:
+          - 5432:5432
+          - 3306:3306
+        # A container that is up is not a database that is ready, and without
+        # this the first connection races the server's own startup.
+        options: >-
+          --health-cmd="bash -c 'pg_isready -U tweaktags || mysqladmin ping -h 127.0.0.1 -ptweaktags || mariadb-admin ping -h 127.0.0.1 -ptweaktags'"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+          --health-start-period=30s
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build
+
+      - name: Run the adapter contract
+        run: pnpm test:adapters
+        env:
+          # The contract suite runs whichever of these are set, and skips the
+          # rest, so the same command works locally with nothing configured.
+          TWEAKTAGS_TEST_POSTGRES_URL: ${{ matrix.database == 'postgres' && 'postgres://tweaktags:tweaktags@127.0.0.1:5432/tweaktags_test' || '' }}
+          TWEAKTAGS_TEST_MYSQL_URL: ${{ matrix.database == 'mysql' && 'mysql://root:tweaktags@127.0.0.1:3306/tweaktags_test' || '' }}
+          TWEAKTAGS_TEST_MARIADB_URL: ${{ matrix.database == 'mariadb' && 'mysql://root:tweaktags@127.0.0.1:3306/tweaktags_test' || '' }}
+
+  # Publishing. This is the whole point of "needs": if the build job fails, or
+  # any one of the four adapter runs fails, this job never starts and nothing
+  # reaches npm. It only runs on main, so a push to staging or a pull request
+  # can never publish, whatever else it does.
+  release:
+    name: Publish to npm
+    needs: [build, adapters]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write # to push the version pull request and create releases
+      pull-requests: write # to open the version pull request
+      id-token: write # to attach npm provenance to the published packages
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      # The packages are published from dist, so they have to be built here too.
+      # Everything that decides whether they are fit to publish already ran in
+      # the jobs above.
+      - name: Build
+        run: pnpm build
+
+      # Fails immediately, and says why, if the token is missing, expired, or
+      # lacks publish rights. Without this a bad token surfaces much later as an
+      # opaque 403 from inside the publish step.
+      - name: Check the npm token
+        run: |
+          if [ -z "${NPM_TOKEN}" ]; then
+            echo "The NPM_TOKEN secret is not set on this repository."
+            exit 1
+          fi
+          echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > ~/.npmrc
+          echo "Publishing as: $(npm whoami)"
+          npm access list packages @tweaktags | head -20
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Create release pull request or publish
+        uses: changesets/action@v1
+        with:
+          # Consumes the changesets and bumps versions for the pull request.
+          version: pnpm changeset version
+          # Deliberately not "changeset publish". Its error handling assumes a
+          # 403 from npm always carries a "summary" field, and crashes with an
+          # unrelated TypeError when it does not, hiding the real reason the
+          # publish failed. pnpm prints what npm actually said, and skips both
+          # private packages and versions already on the registry by itself.
+          publish: pnpm -r publish --no-git-checks
+          commit: 'chore: version packages'
+          title: 'chore: version packages'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # changesets/action looks for NPM_TOKEN specifically. Without it, it
+          # falls back to OIDC trusted publishing, which is not set up for these
+          # packages, so authenticate with the token instead.
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          # Provenance is off until a publish from CI has succeeded once. It is
+          # the newest moving part in this step, nothing published so far has an
+          # attestation anyway, and leaving it on while the failure is unexplained
+          # only adds a suspect. Turn it back on afterwards and check that
+          # "npm view @tweaktags/core --json" shows dist.attestations.
+          # NPM_CONFIG_PROVENANCE: true

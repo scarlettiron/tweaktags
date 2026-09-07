@@ -1,12 +1,10 @@
 # @tweaktags/db-mysql
 
-The MySQL and MariaDB database adapter and migrations for TweakTags.
+The MySQL and MariaDB adapter for TweakTags, the self-hosted inline CMS for Next.js, React, and plain HTML.
+
+Stores your editable content in MySQL or MariaDB, and owns the migrations that create the tables.
 
 Built and maintained by [Scarlett A. Scott (@scarlettiron)](https://github.com/scarlettiron).
-
-Part of **[TweakTags](https://github.com/scarlettiron/tweaktags)**, a lightweight edit in place content layer for React, Next,
-and plain HTML sites. Mark any element with a `data-tweaktags-*` attribute, and signed in editors
-change its text, rich text, or media right on the live page. Everyone else just sees the saved content.
 
 **Full documentation and guides:** https://scarlettiron.github.io/tweaktags/
 
@@ -66,6 +64,59 @@ database is usually the opposite and refuses a connection without SSL.
 Set `ssl: true` for a hosted database, and leave it unset with no `sslmode` parameter for a local
 one. When the config and the connection string disagree, TweakTags says so at startup rather than
 letting one of them silently win, and explains the failure in the log if the connection then fails.
+
+## Supported MySQL and MariaDB versions
+
+Every version below runs the full adapter contract in CI on each pull request,
+so the tested list and the supported list are the same list.
+
+| Version | Status |
+| --- | --- |
+| MySQL 8.4 | Tested |
+| MySQL 8.0 | Tested |
+| MySQL 5.7 | Works, but not supported: it reached end of life in October 2023 |
+| MariaDB 11.8, 11.4 | Tested |
+| MariaDB 10.11, 10.6 | Tested |
+| MariaDB 10.5 | Works, past its end of life |
+
+The tables are created as `utf8mb4` with an explicit collation rather than
+inheriting the server default. That matters: MySQL 5.7 defaults to `latin1`,
+and so does any 8.x server configured that way, which rejects four byte
+characters such as emoji outright. If you are on a database created before this
+was pinned, and emoji are being rejected, convert the tables once:
+
+```sql
+ALTER TABLE `__TweakTags__Content`        CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `__TweakTags__Users`          CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `__TweakTags__Refresh_Tokens` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+```
+
+## Connection pooling
+
+On a normal Node server there is one process and one pool, so there is nothing to configure. Leave
+`database.pool` out and mysql2's defaults apply.
+
+On serverless, every instance that wakes up builds its own pool, so the connection count multiplies
+by the number of warm instances: **50 instances × 10 connections = 500 connections**, which is more
+than a small managed database will accept. Keep each pool small:
+
+```ts
+database: {
+  provider: 'mysql',
+  connectionString: process.env.DATABASE_URL,
+  pool: {
+    max: 2,                        // each instance serves one request at a time
+    idleTimeoutMillis: 10_000,     // let a sleeping instance let go
+    connectionTimeoutMillis: 5_000, // fail fast instead of hanging
+  },
+},
+```
+
+`max`, `idleTimeoutMillis`, and `connectionTimeoutMillis` apply. `min` is ignored, because mysql2 has no minimum pool size to map it onto.
+
+Every field is optional, and anything you leave out keeps the driver default rather than being
+overwritten with a blank. Values are checked when the config is resolved, so a typo fails at startup
+with a clear message instead of turning up later as a connection error.
 
 ## Requirements
 

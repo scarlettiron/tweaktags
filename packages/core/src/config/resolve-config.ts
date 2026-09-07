@@ -54,6 +54,34 @@ export const resolveConfig = (input: TweakTagsUserConfig): TweakTagsConfig => {
     }
   }
 
+  //A typo here would otherwise reach the driver as NaN or a negative number and
+  //fail much later, as a connection error that says nothing about the config.
+  if (input.database.pool) {
+    const fields = ['max', 'min', 'idleTimeoutMillis', 'connectionTimeoutMillis'] as const;
+
+    for (const field of fields) {
+      const value = input.database.pool[field];
+
+      if (value === undefined) {
+        continue;
+      }
+
+      if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
+        throw badRequest(`The database pool "${field}" must be a positive number`);
+      }
+    }
+
+    const { max, min } = input.database.pool;
+
+    if (typeof max === 'number' && max < 1) {
+      throw badRequest('The database pool "max" must be at least 1');
+    }
+
+    if (typeof max === 'number' && typeof min === 'number' && min > max) {
+      throw badRequest('The database pool "min" cannot be larger than "max"');
+    }
+  }
+
   if (!input.auth || input.auth.provider !== 'jwt') {
     throw badRequest('The config needs an auth section with provider set to "jwt"');
   }

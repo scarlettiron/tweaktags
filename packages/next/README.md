@@ -1,12 +1,10 @@
 # @tweaktags/next
 
-The Next.js route handler plus the React bindings, in one package. The fastest way to add TweakTags to a Next app.
+A self-hosted inline CMS and visual content editor for Next.js.
+
+Add a CMS to a Next.js site you already have, without rebuilding it around one. Signed in editors change text, rich text, and images directly on the live page. Works with the App Router and the Pages Router, and ships the route handler and the React bindings in one package.
 
 Built and maintained by [Scarlett A. Scott (@scarlettiron)](https://github.com/scarlettiron).
-
-Part of **[TweakTags](https://github.com/scarlettiron/tweaktags)**, a lightweight edit in place content layer for React, Next,
-and plain HTML sites. Mark any element with a `data-tweaktags-*` attribute, and signed in editors
-change its text, rich text, or media right on the live page. Everyone else just sees the saved content.
 
 **Full documentation and guides:** https://scarlettiron.github.io/tweaktags/
 

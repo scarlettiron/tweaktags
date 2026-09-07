@@ -28,7 +28,7 @@ export const MIGRATIONS: Migration[] = [
         media_url TEXT NULL,
         updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_by VARCHAR(255) NULL
-      );
+      ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
     `,
   },
   {
@@ -41,7 +41,7 @@ export const MIGRATIONS: Migration[] = [
         role VARCHAR(32) NOT NULL,
         created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
         CONSTRAINT \`__TweakTags__Users_Role_Chk\` CHECK (role IN ('superuser', 'editor'))
-      );
+      ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
     `,
   },
   {
@@ -61,7 +61,7 @@ export const MIGRATIONS: Migration[] = [
         expires_at VARCHAR(32) NOT NULL,
         revoked TINYINT(1) NOT NULL DEFAULT 0,
         INDEX \`__TweakTags__Refresh_Family_Idx\` (family_id)
-      );
+      ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
     `,
   },
   {

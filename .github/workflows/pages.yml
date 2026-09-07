@@ -6,6 +6,11 @@ on:
     branches: [main]
     paths:
       - 'docs/**'
+      # The live demo runs the real browser build, so a change to the vanilla
+      # package or the demo backend has to redeploy the site too.
+      - 'packages/vanillajs/**'
+      - 'packages/browser/**'
+      - 'examples/vanilla-demo/mock-api.js'
       - '.github/workflows/pages.yml'
   # Allow manual runs from the Actions tab.
   workflow_dispatch:
@@ -34,6 +39,30 @@ jobs:
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      # The demo page at /demo runs the real browser build against a small in
+      # memory backend, so there is nothing to keep in sync by hand: both files
+      # are copied in from the source of truth on every deploy.
+      - name: Build the browser bundle for the live demo
+        run: pnpm --filter @tweaktags/vanillajs build
+
+      - name: Copy the demo assets into the site
+        run: |
+          cp packages/vanillajs/dist/index.global.js docs/demo/tweaktags.global.js
+          cp examples/vanilla-demo/mock-api.js docs/demo/mock-api.js
+          ls -la docs/demo
 
       - name: Upload the docs folder as the site
         uses: actions/upload-pages-artifact@v3

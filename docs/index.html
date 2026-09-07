@@ -3,10 +3,10 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>TweakTags &mdash; Inline CMS for React &amp; Next.js by Scarlett A. Scott</title>
+    <title>TweakTags &mdash; Self-hosted inline CMS for Next.js &amp; React</title>
     <meta
       name="description"
-      content="TweakTags is an open source inline CMS and visual content editor for React, Next.js, and vanilla JavaScript. Edit text, rich text, and media right on the live page."
+      content="A self-hosted inline CMS and visual content editor for Next.js, React, and plain HTML. Bolt it onto a site you already have and edit text, rich text, and images on the live page."
     />
     <meta name="author" content="Scarlett A. Scott" />
     <link rel="canonical" href="https://scarlettiron.github.io/tweaktags/" />
@@ -696,6 +696,7 @@
     <header class="site">
       <span class="brand"><span class="dot"></span> TweakTags</span>
       <span class="links">
+        <a href="./demo/">Live demo</a>
         <a class="hide-sm" href="#install">Install</a>
         <a class="hide-sm" href="#quickstart">Quick start</a>
         <a href="https://github.com/scarlettiron/tweaktags">GitHub</a>
@@ -716,6 +717,7 @@
         <a href="#vanilla">No framework</a>
         <div class="group">Reference</div>
         <a href="#databases">Databases</a>
+        <a href="#serverless">Serverless pools</a>
         <a href="#cli">CLI commands</a>
         <a href="#tenants">Multi-tenant</a>
         <a href="#uploads">Media uploads</a>
@@ -727,9 +729,11 @@
       <main>
         <!-- OVERVIEW -->
         <section id="overview">
-          <h1>Edit your site, right on the page.</h1>
+          <h1>A self-hosted inline CMS for sites you already have.</h1>
           <p class="lede">
-            TweakTags lets you change the words and images on your site without leaving the page.
+            TweakTags is a self-hosted inline CMS and visual content editor for Next.js, React, and
+            plain HTML. Bolt it onto a website you already have, instead of rebuilding the site
+            around a CMS. It lets you change the words and images on your site without leaving the page.
             Drop a <code>data-tweaktags-*</code> attribute on any element, and the people you trust
             can click in and edit it live. Everyone else just sees the finished content. It installs
             from npm and drops into any React or Next app, or a plain HTML site with a single
@@ -739,6 +743,13 @@
           <p style="color: var(--muted); margin-top: -0.5rem">
             An open source inline CMS and visual content editor, created and maintained by
             <a href="https://github.com/scarlettiron">Scarlett A. Scott (@scarlettiron)</a>.
+          </p>
+
+          <p class="callout">
+            <strong>Try it without installing anything.</strong> The
+            <a href="./demo/">live demo</a> runs the real editor in your browser against an in memory
+            backend. Sign in, change a heading and an image on the page, and save. No sign up, and
+            nothing leaves the tab.
           </p>
 
           <div class="pill-row">
@@ -1182,6 +1193,42 @@ npx tweaktags create-superuser --email you@example.com --password a-strong-passw
         <!-- DATABASES -->
         <section id="databases">
           <h2>Databases</h2>
+
+          <h3>Supported versions</h3>
+          <p>
+            Every version below runs the full adapter test suite in continuous integration on each
+            pull request, against a real server of that version. The tested list and the supported
+            list are deliberately the same list.
+          </p>
+
+          <table>
+            <thead>
+              <tr><th>Database</th><th>Tested versions</th><th>Notes</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Postgres</strong></td>
+                <td>13, 14, 15, 16, 17, 18</td>
+                <td>13 is past upstream end of life; take 14 or newer for a new install</td>
+              </tr>
+              <tr>
+                <td><strong>MySQL</strong></td>
+                <td>8.0, 8.4</td>
+                <td>5.7 works, but reached end of life in October 2023</td>
+              </tr>
+              <tr>
+                <td><strong>MariaDB</strong></td>
+                <td>10.6, 10.11, 11.4, 11.8</td>
+                <td>10.5 works, but is past end of life</td>
+              </tr>
+              <tr>
+                <td><strong>SQLite</strong></td>
+                <td>whatever <code>better-sqlite3</code> bundles</td>
+                <td>Not a version you choose</td>
+              </tr>
+            </tbody>
+          </table>
+
           <p>
             Postgres comes bundled with the server, so it needs nothing extra. For anything else,
             add the matching adapter package and point your config at it. Either way,
@@ -1309,6 +1356,59 @@ npx tweaktags create-superuser --email you@example.com --password a-strong-passw
         </section>
 
         <!-- UPLOADS -->
+        <section id="serverless">
+          <h2>Serverless &amp; connection pools</h2>
+          <p>
+            On a normal Node server there is one process and one connection pool, and there is
+            nothing to configure. Leave <code>database.pool</code> out and the driver's defaults
+            apply.
+          </p>
+
+          <p>
+            Serverless is different. Every instance that wakes up builds its own pool, so the
+            connection count multiplies by the number of warm instances:
+            <strong>50 instances × 10 connections = 500 connections</strong>. Postgres refuses new
+            connections past <code>max_connections</code>, often 100 on a small managed instance, so
+            the app starts failing to connect under exactly the traffic that scaled it up.
+          </p>
+
+          <div class="code" data-lang="ts">
+            <div class="bar"><span>tweaktags.config.ts</span><button class="copy">Copy</button></div>
+            <pre><span class="tok-k">export default</span> <span class="tok-f">defineConfig</span>({
+  database: {
+    provider: <span class="tok-s">'postgres'</span>,
+    connectionString: process.env.<span class="tok-f">DATABASE_URL</span>,
+    pool: {
+      max: <span class="tok-k">2</span>,                        <span class="tok-c">// each instance serves one request at a time</span>
+      idleTimeoutMillis: <span class="tok-k">10_000</span>,     <span class="tok-c">// let a sleeping instance let go</span>
+      connectionTimeoutMillis: <span class="tok-k">5_000</span>, <span class="tok-c">// fail fast instead of hanging</span>
+    },
+  },
+  <span class="tok-c">// ...the rest of your config</span>
+});</pre>
+          </div>
+
+          <table>
+            <thead>
+              <tr><th>Setting</th><th>What it does</th><th>Postgres</th><th>MySQL / MariaDB</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>max</code></td><td>Most connections one pool opens</td><td>yes</td><td>yes</td></tr>
+              <tr><td><code>min</code></td><td>Connections kept open when idle</td><td>yes</td><td>ignored, no minimum exists</td></tr>
+              <tr><td><code>idleTimeoutMillis</code></td><td>How long an idle connection is kept</td><td>yes</td><td>yes</td></tr>
+              <tr><td><code>connectionTimeoutMillis</code></td><td>How long to wait for a connection</td><td>yes</td><td>yes</td></tr>
+            </tbody>
+          </table>
+
+          <p class="callout">
+            Every field is optional, and anything left out keeps the driver's own default rather than
+            being overwritten. SQLite has one file handle and no pool, so it ignores this. Values are
+            checked when the config is resolved, so a typo fails at startup rather than turning up
+            later as a connection error. If your host offers a pooler such as PgBouncer, use it and
+            keep <code>max</code> small as well.
+          </p>
+        </section>
+
         <section id="uploads">
           <h2>Media uploads</h2>
           <p>

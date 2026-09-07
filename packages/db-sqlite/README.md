@@ -1,12 +1,10 @@
 # @tweaktags/db-sqlite
 
-The SQLite database adapter and migrations for TweakTags. Great for small sites and local development.
+The SQLite adapter for TweakTags, the self-hosted inline CMS for Next.js, React, and plain HTML.
+
+Stores your editable content in a SQLite file, which is often all a small site or a local setup needs.
 
 Built and maintained by [Scarlett A. Scott (@scarlettiron)](https://github.com/scarlettiron).
-
-Part of **[TweakTags](https://github.com/scarlettiron/tweaktags)**, a lightweight edit in place content layer for React, Next,
-and plain HTML sites. Mark any element with a `data-tweaktags-*` attribute, and signed in editors
-change its text, rich text, or media right on the live page. Everyone else just sees the saved content.
 
 **Full documentation and guides:** https://scarlettiron.github.io/tweaktags/
 
@@ -49,6 +47,22 @@ All connection options are listed in the [config type reference](https://github.
 - **Documentation and guides:** https://scarlettiron.github.io/tweaktags/
 - **Every config setting:** [config type reference](https://github.com/scarlettiron/tweaktags/blob/main/packages/core/src/types/index.ts)
 - **Source and issues:** [github.com/scarlettiron/tweaktags](https://github.com/scarlettiron/tweaktags)
+
+## Supported SQLite versions
+
+There is no version to choose. SQLite is compiled into
+[better-sqlite3](https://www.npmjs.com/package/better-sqlite3), so the version
+comes with that dependency rather than from a server you run. The adapter
+contract runs against whatever it ships, on every pull request.
+
+The one thing that can vary is the native binding: it is built when the package
+installs, and on a machine that cannot build it the SQLite tests skip rather
+than fail. `pnpm rebuild better-sqlite3` builds it.
+
+## Connection pooling
+
+SQLite has a single file handle and no connection pool, so a `database.pool` block is accepted and
+ignored here. It applies to the Postgres, MySQL, and MariaDB adapters.
 
 ## Requirements
 
