@@ -1,6 +1,6 @@
 {
   "name": "@tweaktags/vanillajs",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "Self-hosted inline CMS and visual editor for plain HTML and JavaScript. Edit text, rich text, images, and website content directly on the live page. No framework, no build step.",
   "keywords": [
     "tweaktags",

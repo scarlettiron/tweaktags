@@ -86,4 +86,14 @@ export const MIGRATIONS: Migration[] = [
       ALTER TABLE "${CONTENT_TABLE}_new" RENAME TO "${CONTENT_TABLE}";
     `,
   },
+  {
+    //The refresh table is only indexed on family_id, and deleting every
+    //token for one user filters on user_id instead, which would otherwise
+    //scan the whole table on every sign out.
+    id: '0006_index_refresh_user',
+    sql: `
+      CREATE INDEX IF NOT EXISTS "__TweakTags__Refresh_User_Idx"
+        ON "${REFRESH_TABLE}" (user_id);
+    `,
+  },
 ];

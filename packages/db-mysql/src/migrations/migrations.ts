@@ -76,4 +76,17 @@ export const MIGRATIONS: Migration[] = [
         ADD UNIQUE KEY \`__TweakTags__Content_Tenant_Tag_Idx\` (tenant, tag);
     `,
   },
+  {
+    //The refresh table is only indexed on family_id, and deleting every
+    //token for one user filters on user_id instead, which would otherwise
+    //scan the whole table on every sign out.
+    //Written as one ALTER because the pool has no multi statement support, and
+    //without an IF NOT EXISTS because MySQL has none for an index. A migration
+    //only ever runs once, so nothing here has to survive a second run.
+    id: '0006_index_refresh_user',
+    sql: `
+      ALTER TABLE \`${REFRESH_TABLE}\`
+        ADD INDEX \`__TweakTags__Refresh_User_Idx\` (user_id);
+    `,
+  },
 ];

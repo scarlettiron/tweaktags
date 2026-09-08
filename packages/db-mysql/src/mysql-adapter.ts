@@ -19,6 +19,7 @@ import {
   type DatabaseConfig,
   type DbAdapter,
   type RefreshTokenRecord,
+  type Role,
   type StoredUser,
   type TagType,
   AUTH_TABLE,
@@ -293,6 +294,54 @@ export class MysqlAdapter implements DbAdapter {
     return result.affectedRows > 0;
   }
 
+  //The methods below are keyed by id rather than by email, because an email is
+  //no longer a stable key once a user can change their own address.
+  public async setUserRole(id: string, role: Role): Promise<boolean> {
+    const [result] = await this.pool.execute<ResultSetHeader>(
+      `UPDATE \`${AUTH_TABLE}\` SET role = ? WHERE id = ?;`,
+      [role, id],
+    );
+
+    return result.affectedRows > 0;
+  }
+
+  public async setUserPassword(id: string, passwordHash: string): Promise<boolean> {
+    const [result] = await this.pool.execute<ResultSetHeader>(
+      `UPDATE \`${AUTH_TABLE}\` SET password_hash = ? WHERE id = ?;`,
+      [passwordHash, id],
+    );
+
+    return result.affectedRows > 0;
+  }
+
+  public async setUserEmail(id: string, email: string): Promise<boolean> {
+    try {
+      const [result] = await this.pool.execute<ResultSetHeader>(
+        `UPDATE \`${AUTH_TABLE}\` SET email = ? WHERE id = ?;`,
+        [email, id],
+      );
+
+      return result.affectedRows > 0;
+    } catch (error) {
+      //The unique key on email guards an update just as it guards an insert,
+      //so this is the same conflict a caller already handles from createUser.
+      if (errorCode(error) === DUPLICATE_ENTRY) {
+        throw conflict(`A user with the email "${email}" already exists`);
+      }
+
+      throw error;
+    }
+  }
+
+  public async deleteUser(id: string): Promise<boolean> {
+    const [result] = await this.pool.execute<ResultSetHeader>(
+      `DELETE FROM \`${AUTH_TABLE}\` WHERE id = ?;`,
+      [id],
+    );
+
+    return result.affectedRows > 0;
+  }
+
   public async listUsers(): Promise<AuthUser[]> {
     const [rows] = await this.pool.query<RowDataPacket[]>(
       `SELECT id, email, role FROM \`${AUTH_TABLE}\` ORDER BY email ASC;`,
@@ -351,6 +400,23 @@ export class MysqlAdapter implements DbAdapter {
     );
 
     return rows.length > 0;
+  }
+
+  //A deleted token cannot be replayed at all, where a revoked one still has to
+  //be looked up to be rejected, so signing a user out removes the rows.
+  //Sparing one family is what lets somebody end their other sessions without
+  //ending the session they are doing it from.
+  public async deleteRefreshTokensForUser(userId: string, exceptFamilyId?: string): Promise<void> {
+    if (exceptFamilyId === undefined) {
+      await this.pool.execute(`DELETE FROM \`${REFRESH_TABLE}\` WHERE user_id = ?;`, [userId]);
+
+      return;
+    }
+
+    await this.pool.execute(
+      `DELETE FROM \`${REFRESH_TABLE}\` WHERE user_id = ? AND family_id <> ?;`,
+      [userId, exceptFamilyId],
+    );
   }
 
   public async close(): Promise<void> {

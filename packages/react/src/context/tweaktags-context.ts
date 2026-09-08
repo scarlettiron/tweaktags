@@ -8,7 +8,7 @@
 import { createContext } from 'react';
 import type { ReactNode } from 'react';
 
-import type { AuthUser, ContentRecord, TagType } from '@tweaktags/core';
+import type { AuthUser, ContentRecord, Role, TagType } from '@tweaktags/core';
 
 //Everything the provider shares with the rest of the app.
 //Components and hooks read this through the useTweakTags hook.
@@ -36,6 +36,9 @@ export interface TweakTagsContextValue {
 
   //Whether the current user is allowed to edit.
   canEdit: boolean;
+
+  //Whether the current user may manage tags and other users.
+  isSuperuser: boolean;
 
   //Turns edit in view mode on or off.
   setEditing: (on: boolean) => void;
@@ -68,6 +71,29 @@ export interface TweakTagsContextValue {
 
   //Lists every tag that currently exists in the database.
   listTags: () => Promise<string[]>;
+
+  //Lists every user. Superuser only.
+  listUsers: () => Promise<AuthUser[]>;
+
+  //Adds a user with a starting password and role. Superuser only.
+  createUser: (email: string, password: string, role: Role) => Promise<AuthUser>;
+
+  //Changes somebody else's role, which signs them out. Superuser only.
+  //The server refuses to change your own role.
+  updateUserRole: (userId: string, role: Role) => Promise<AuthUser>;
+
+  //Resets somebody else's password, which signs them out. Superuser only.
+  updateUserPassword: (userId: string, password: string) => Promise<void>;
+
+  //Removes a user. Superuser only, and never yourself or a current superuser.
+  deleteUser: (userId: string) => Promise<void>;
+
+  //Changes your own email. Any signed in user, current password required.
+  updateMyEmail: (currentPassword: string, email: string) => Promise<AuthUser>;
+
+  //Changes your own password. Any signed in user, current password required.
+  //Your other sessions end, this one stays signed in.
+  updateMyPassword: (currentPassword: string, password: string) => Promise<void>;
 
   //Loads the content records for a set of tags and returns them.
   //Also updates the shared cache. Used by the popup editor.

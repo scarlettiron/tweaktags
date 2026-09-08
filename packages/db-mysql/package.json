@@ -1,6 +1,6 @@
 {
   "name": "@tweaktags/db-mysql",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "MySQL and MariaDB adapter and migrations for TweakTags, the self-hosted inline CMS and visual editor for Next.js, React, and plain HTML.",
   "keywords": [
     "tweaktags",

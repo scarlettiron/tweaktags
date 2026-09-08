@@ -1,6 +1,6 @@
 {
   "name": "@tweaktags/server",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "Node backend for TweakTags, the self-hosted inline CMS and visual editor for Next.js, React, and plain HTML. Mount it on any route, or run it standalone.",
   "keywords": [
     "tweaktags",

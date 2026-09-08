@@ -27,6 +27,10 @@ export interface AdapterHarness {
 const actor: Actor = { userId: '7', role: 'superuser' };
 const TENANT = 'default';
 
+//An id no adapter will ever hand out, and still a number so that the Postgres
+//and MySQL bigint columns accept it rather than failing to parse it.
+const UNKNOWN_ID = '987654';
+
 export const describeDatabaseAdapter = (name: string, harness: AdapterHarness): void => {
   const suite = harness.available ? describe : describe.skip;
 
@@ -252,6 +256,80 @@ export const describeDatabaseAdapter = (name: string, harness: AdapterHarness): 
         expect(users[0]?.role).toBe('superuser');
         expect(users[1]?.role).toBe('editor');
       });
+
+      it('changes a role by id and reports a miss for an unknown one', async () => {
+        const created = await db.createUser({
+          email: 'promoted@example.com',
+          passwordHash: 'a',
+          role: 'editor',
+        });
+
+        expect(await db.setUserRole(created.id, 'superuser')).toBe(true);
+        expect((await db.findUserById(created.id))?.role).toBe('superuser');
+
+        expect(await db.setUserRole(UNKNOWN_ID, 'superuser')).toBe(false);
+      });
+
+      it('changes a password by id for that user only', async () => {
+        const target = await db.createUser({
+          email: 'target@example.com',
+          passwordHash: 'old',
+          role: 'editor',
+        });
+        const bystander = await db.createUser({
+          email: 'bystander@example.com',
+          passwordHash: 'untouched',
+          role: 'editor',
+        });
+
+        expect(await db.setUserPassword(target.id, 'new-hash')).toBe(true);
+
+        expect((await db.findUserById(target.id))?.passwordHash).toBe('new-hash');
+        expect((await db.findUserById(bystander.id))?.passwordHash).toBe('untouched');
+
+        expect(await db.setUserPassword(UNKNOWN_ID, 'new-hash')).toBe(false);
+      });
+
+      it('changes an email so the new address is the one that finds them', async () => {
+        const created = await db.createUser({
+          email: 'before@example.com',
+          passwordHash: 'a',
+          role: 'editor',
+        });
+
+        expect(await db.setUserEmail(created.id, 'after@example.com')).toBe(true);
+
+        expect((await db.findUserByEmail('after@example.com'))?.id).toBe(created.id);
+        expect(await db.findUserByEmail('before@example.com')).toBeNull();
+
+        expect(await db.setUserEmail(UNKNOWN_ID, 'nobody@example.com')).toBe(false);
+      });
+
+      it('refuses an email another user already has', async () => {
+        await db.createUser({ email: 'taken@example.com', passwordHash: 'a', role: 'editor' });
+        const created = await db.createUser({
+          email: 'mine@example.com',
+          passwordHash: 'b',
+          role: 'editor',
+        });
+
+        //Each driver raises a different code for this. What matters is that all
+        //of them reject, and that the adapter turns it into a thrown error.
+        await expect(db.setUserEmail(created.id, 'taken@example.com')).rejects.toThrow();
+      });
+
+      it('deletes a user by id and reports a miss for an unknown one', async () => {
+        const created = await db.createUser({
+          email: 'departing@example.com',
+          passwordHash: 'a',
+          role: 'editor',
+        });
+
+        expect(await db.deleteUser(created.id)).toBe(true);
+        expect(await db.findUserById(created.id)).toBeNull();
+
+        expect(await db.deleteUser(UNKNOWN_ID)).toBe(false);
+      });
     });
 
     describe('refresh tokens', () => {
@@ -303,6 +381,59 @@ export const describeDatabaseAdapter = (name: string, harness: AdapterHarness): 
 
         //Stored as a string on every adapter, and it has to come back readable.
         expect(Number.isNaN(Date.parse(String(found?.expiresAt)))).toBe(false);
+      });
+
+      it('deletes every token one user owns and leaves another user alone', async () => {
+        //The ids have to come from createUser: Postgres, MySQL, and SQLite each
+        //mint them differently, and a literal would match on none of them.
+        const mine = await db.createUser({
+          email: 'mine@example.com',
+          passwordHash: 'a',
+          role: 'editor',
+        });
+        const theirs = await db.createUser({
+          email: 'theirs@example.com',
+          passwordHash: 'b',
+          role: 'editor',
+        });
+
+        await db.saveRefreshToken({ ...record, id: 'mine-1', familyId: 'mine-a', userId: mine.id });
+        await db.saveRefreshToken({ ...record, id: 'mine-2', familyId: 'mine-b', userId: mine.id });
+        await db.saveRefreshToken({
+          ...record,
+          id: 'theirs-1',
+          familyId: 'theirs-a',
+          userId: theirs.id,
+        });
+
+        await db.deleteRefreshTokensForUser(mine.id);
+
+        expect(await db.findRefreshToken('mine-1')).toBeNull();
+        expect(await db.findRefreshToken('mine-2')).toBeNull();
+        expect(await db.isRefreshFamilyActive('mine-a')).toBe(false);
+        expect(await db.isRefreshFamilyActive('mine-b')).toBe(false);
+
+        expect((await db.findRefreshToken('theirs-1'))?.userId).toBe(theirs.id);
+        expect(await db.isRefreshFamilyActive('theirs-a')).toBe(true);
+      });
+
+      it('spares one family so the session doing the signing out survives', async () => {
+        const user = await db.createUser({
+          email: 'keeper@example.com',
+          passwordHash: 'a',
+          role: 'editor',
+        });
+
+        await db.saveRefreshToken({ ...record, id: 'here', familyId: 'here-a', userId: user.id });
+        await db.saveRefreshToken({ ...record, id: 'phone', familyId: 'phone-a', userId: user.id });
+
+        await db.deleteRefreshTokensForUser(user.id, 'here-a');
+
+        expect((await db.findRefreshToken('here'))?.familyId).toBe('here-a');
+        expect(await db.isRefreshFamilyActive('here-a')).toBe(true);
+
+        expect(await db.findRefreshToken('phone')).toBeNull();
+        expect(await db.isRefreshFamilyActive('phone-a')).toBe(false);
       });
     });
   });

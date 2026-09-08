@@ -43,6 +43,16 @@ export const ACTIONS = {
   DELETE_TAG: 'deleteTag',
   //Asks the server for a presigned url to upload a media file to.
   SIGN_UPLOAD: 'signUpload',
+
+  //Managing the people who can edit. The first five are superuser only. The
+  //last two are how anybody changes their own details, editors included.
+  LIST_USERS: 'listUsers',
+  CREATE_USER: 'createUser',
+  UPDATE_USER_ROLE: 'updateUserRole',
+  UPDATE_USER_PASSWORD: 'updateUserPassword',
+  DELETE_USER: 'deleteUser',
+  UPDATE_MY_EMAIL: 'updateMyEmail',
+  UPDATE_MY_PASSWORD: 'updateMyPassword',
 } as const;
 
 //Stable error codes the client can branch on.
@@ -62,6 +72,19 @@ export const DATA_ATTRIBUTE_PREFIX = 'data-tweaktags-';
 //Tag names live inside an html attribute name, so they may only use
 //lowercase letters, numbers, and single hyphens between groups.
 export const TAG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+//Deliberately loose. The real test of an address is whether mail reaches it,
+//and a strict pattern rejects valid addresses for no gain.
+export const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+//The longest address any mail server accepts.
+export const MAX_EMAIL_LENGTH = 254;
+
+//Password rules. Note bcrypt only reads the first 72 bytes, so a maximum below
+//that would be a real limit while anything above it is only there to stop
+//somebody posting a megabyte.
+export const MIN_PASSWORD_LENGTH = 8;
+export const MAX_PASSWORD_LENGTH = 200;
 
 //The tenant used when a config does not name one, so single site installs and
 //existing content keep working with no changes.

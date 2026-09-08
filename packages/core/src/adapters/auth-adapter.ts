@@ -34,4 +34,10 @@ export interface AuthAdapter {
   //Create a user record using the underlying user store.
   //The role decides what the user is allowed to do.
   createUser(email: string, password: string, role: Role): Promise<Actor>;
+
+  //Check a password without starting a session, for the moments where somebody
+  //has to prove who they are again: changing their own email or password.
+  //Calling login for this would work, but it writes a refresh token row every
+  //time and would count as a login anywhere we later add rate limiting.
+  verifyPassword(email: string, password: string): Promise<boolean>;
 }

@@ -43,6 +43,10 @@ export interface EngineState {
   user: import('@tweaktags/core').AuthUser | null;
   isEditing: boolean;
   canEdit: boolean;
+
+  //Whether the signed in user may manage tags and other users. The engine works
+  //this out once so the panels do not each retype the role comparison.
+  isSuperuser: boolean;
   editInView: boolean;
   richText: boolean;
   mediaUpload: boolean;

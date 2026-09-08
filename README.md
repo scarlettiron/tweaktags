@@ -50,12 +50,13 @@ this kind of thing before, that is fine. Follow each step in order and copy the 
 13. [Step 10, run it and edit](#step-10-run-it-and-edit)
 14. [Creating and managing tags](#creating-and-managing-tags)
 15. [Tag naming rules](#tag-naming-rules)
-16. [Settings reference](#settings-reference)
-17. [Command reference](#command-reference)
-18. [Troubleshooting](#troubleshooting)
-19. [App Router or Pages Router](#app-router-or-pages-router)
-20. [Using TweakTags without Next](#using-tweaktags-without-next)
-21. [Packages](#packages)
+16. [Managing users](#managing-users)
+17. [Settings reference](#settings-reference)
+18. [Command reference](#command-reference)
+19. [Troubleshooting](#troubleshooting)
+20. [App Router or Pages Router](#app-router-or-pages-router)
+21. [Using TweakTags without Next](#using-tweaktags-without-next)
+22. [Packages](#packages)
 
 ## How it works in plain words
 
@@ -545,6 +546,63 @@ Because the tag becomes part of an HTML attribute name, tag names can only use:
 
 So `hero-title` and `section-2` are fine. `HeroTitle`, `hero title`, and `hero_title` are not.
 
+## Managing users
+
+Until now the only way to add an editor or reset a password was the command line, which meant
+having a terminal on the server. You can now do all of it from the browser.
+
+Two audiences, two places:
+
+- **Superusers** get a **Users** panel, in the edit bar and as a tab in the full page admin panel.
+- **Everybody signed in**, editors included, gets an **Account** panel in the same two places, for
+  changing their own email and password.
+
+### What a superuser can do
+
+- **See every user**, with their email and role.
+- **Add a user** by email, starting password and role. The password must be at least 8 characters.
+- **Change somebody's role**, in either direction. Promoting an editor and demoting another
+  superuser are both allowed.
+- **Reset somebody's password** without knowing their old one.
+- **Delete a user.**
+
+### The four rules the server will not let you break
+
+These are enforced on the server, not just hidden in the UI, so they hold even for somebody calling
+the API directly.
+
+1. **You cannot change your own role.** If you could, the last superuser could demote themselves and
+   leave the install with nobody able to manage users, with no way back except editing the database
+   by hand. Promote somebody else and let them change you.
+2. **You cannot delete yourself.**
+3. **You cannot delete a superuser.** Change their role to editor first, then delete them. This is
+   deliberate friction: removing an administrator should be two decisions, not one.
+4. **Changing your own email or password needs your current password**, so somebody who walks up to
+   an unlocked laptop cannot quietly take the account over.
+
+A demotion takes effect immediately, not when the access token expires. Every user management
+action reads the caller's role from the database rather than trusting the role written into their
+token, so a superuser who was demoted a second ago has already lost these powers.
+
+### Who gets signed out
+
+| What happened | Whose sessions end |
+| --- | --- |
+| Their role changed | Theirs, everywhere. The role lives inside the access token, so they sign in again and get a fresh one. |
+| A superuser reset their password | Theirs, everywhere. A reset that left the old sessions signed in would not be a reset. |
+| They changed their own password | Their other devices. The one they are using stays signed in. |
+| They changed their own email | Nobody. Only the name they sign in with changed. |
+| They were deleted | Theirs, everywhere. |
+
+TweakTags sends no email, so somebody whose password was reset for them finds out by being signed
+out. Tell them yourself.
+
+### The command line still works
+
+`npx tweaktags create-user`, `create-superuser` and `update-password` are unchanged, and are still
+the way to make the very first superuser on a fresh install, before there is anybody to sign in as.
+See the [command reference](#command-reference).
+
 ## Databases
 
 TweakTags supports Postgres, MySQL, MariaDB, and SQLite. Postgres comes built in. For the others,
@@ -723,6 +781,14 @@ on its own, which is at most `auth.accessTtlSeconds` (15 minutes by default). If
 or a revoked session to block access **right away**, set `auth.strictRevocation: true`. Then every
 request also checks that the session's family is still active, at the cost of one database read per
 request. This is the strongest setting and the tradeoff is a little speed.
+
+This is worth knowing when you [manage users](#managing-users). Deleting somebody, changing their
+role, or resetting their password all delete their refresh tokens, so they cannot get a new access
+token and are signed out for good the moment their current one runs out. But the access token they
+are already holding keeps working for content edits until it expires, up to
+`auth.accessTtlSeconds`. The user management actions themselves are not affected, because those
+read the role from the database on every call. If you need a removal to take effect the same
+second, `auth.strictRevocation: true` is what closes the gap.
 
 By default the tokens are kept in **secure httpOnly cookies**, which JavaScript on the page cannot
 read, so they are protected from cross site scripting. This is the recommended setup and works for

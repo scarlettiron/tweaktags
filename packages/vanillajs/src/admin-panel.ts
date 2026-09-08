@@ -5,7 +5,19 @@
 //Contributors:
 //Scarlett A. Scott (codescarlett)
 
-import { ROLES, isValidTag, type ContentRecord, type TagType, type TweakTagsEngine } from '@tweaktags/browser';
+import {
+  ROLES,
+  isValidTag,
+  type AuthUser,
+  type ContentRecord,
+  type Role,
+  type TagType,
+  type TweakTagsEngine,
+} from '@tweaktags/browser';
+//The browser package re-exports the shared types but only a handful of values,
+//so the email rule and the password length come straight from core rather than
+//being written out again here.
+import { MIN_PASSWORD_LENGTH, isValidEmail } from '@tweaktags/core';
 
 import { clear, el, type Child } from './dom.js';
 import { applyScope, type TweakTagsTheme } from './theme.js';
@@ -13,6 +25,11 @@ import { uploadButton } from './upload.js';
 import type { ConfirmFn } from './confirm.js';
 
 const PAGE_SIZE = 10;
+
+//The tabs of the signed in dashboard. Create and users are superuser work;
+//account is for everyone, since an editor still has to be able to change their
+//own sign in details.
+type Tab = 'view' | 'create' | 'edit' | 'users' | 'account';
 
 //One tag with its type and saved content record.
 interface Entry {
@@ -77,6 +94,17 @@ const buildPreview = (entry: Entry): HTMLElement => {
 const typeOptions = (): HTMLElement[] =>
   (['plain', 'rich', 'media'] as TagType[]).map((value) => el('option', { value, text: value }));
 
+//The role options for a select, with the current one preselected by the caller.
+//Editor comes first because it is the safer of the two to pick by accident.
+const roleOptions = (): HTMLOptionElement[] =>
+  ([ROLES.EDITOR, ROLES.SUPERUSER] as Role[]).map((value) =>
+    el('option', { value, text: value === ROLES.SUPERUSER ? 'Superuser' : 'Editor' }),
+  );
+
+//A labelled control, the shape every form field in the panel takes.
+const field = (labelText: string, control: HTMLElement): HTMLElement =>
+  el('div', { class: 'tt-field' }, [el('label', { class: 'tt-label', text: labelText }), control]);
+
 //The prev and next paging controls shared by the lists.
 const buildPager = (
   currentPage: number,
@@ -103,8 +131,8 @@ const buildPager = (
 };
 
 //Mounts the full page admin panel into the given container. It shows a full page
-//login when signed out, and a dashboard with view, create, and edit tabs when
-//signed in, each list with its own search and pagination.
+//login when signed out, and a dashboard with view, create, edit, users, and
+//account tabs when signed in, each list with its own search and pagination.
 export const mountAdminPanel = (
   container: HTMLElement,
   engine: TweakTagsEngine,
@@ -115,25 +143,36 @@ export const mountAdminPanel = (
 
   let entries: Entry[] = [];
   let loading = true;
-  let tab: 'view' | 'create' | 'edit' = 'view';
+  let tab: Tab = 'view';
+
+  //Users get their own state rather than being squeezed into the tag shaped
+  //entries, and their own load, so opening the Users tab does not refetch every
+  //tag and refreshing the tags does not refetch every user.
+  let users: AuthUser[] = [];
+  let usersLoaded = false;
+  let usersLoading = false;
 
   //Search and page kept per tab so a reload restores where you were.
   let viewSearch = '';
   let viewPage = 0;
   let editSearch = '';
   let editPage = 0;
+  let usersSearch = '';
+  let usersPage = 0;
 
   let contentArea: HTMLElement | null = null;
-  const tabButtons: Partial<Record<'view' | 'create' | 'edit', HTMLButtonElement>> = {};
+  const tabButtons: Partial<Record<Tab, HTMLButtonElement>> = {};
 
-  const isSuperuser = (): boolean => engine.user?.role === ROLES.SUPERUSER;
-
-  const filterPage = (
+  //Search and paging for any list. textOf says which field the search box
+  //matches on, since tags are found by name and users by address.
+  const filterPage = <T>(
+    items: T[],
+    textOf: (item: T) => string,
     search: string,
     page: number,
-  ): { pageItems: Entry[]; totalPages: number; currentPage: number; matchCount: number } => {
+  ): { pageItems: T[]; totalPages: number; currentPage: number; matchCount: number } => {
     const query = search.trim().toLowerCase();
-    const filtered = entries.filter((entry) => entry.tag.toLowerCase().includes(query));
+    const filtered = items.filter((item) => textOf(item).toLowerCase().includes(query));
     const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
     const currentPage = Math.min(page, totalPages - 1);
     const start = currentPage * PAGE_SIZE;
@@ -141,13 +180,19 @@ export const mountAdminPanel = (
     return { pageItems: filtered.slice(start, start + PAGE_SIZE), totalPages, currentPage, matchCount: filtered.length };
   };
 
+  //Falls a superuser only tab back to the view tab. An editor is never offered
+  //the buttons, but the remembered tab survives a sign out, so what is drawn has
+  //to be checked as well as what is offered. Account is for everyone.
+  const superuserOnly = (wanted: Tab): Tab =>
+    (wanted === 'create' || wanted === 'users') && !engine.isSuperuser ? 'view' : wanted;
+
   //The view tab: a read only, searchable, paged list of every tag.
   const buildViewTab = (): HTMLElement => {
     const listWrap = el('div', { style: { display: 'flex', flexDirection: 'column', gap: '0.5rem' } });
 
     const draw = (): void => {
       clear(listWrap);
-      const { pageItems, totalPages, currentPage, matchCount } = filterPage(viewSearch, viewPage);
+      const { pageItems, totalPages, currentPage, matchCount } = filterPage(entries, (entry) => entry.tag, viewSearch, viewPage);
 
       if (entries.length === 0) {
         listWrap.append(el('span', { class: 'tt-hint', text: 'There are no tags yet.' }));
@@ -266,9 +311,6 @@ export const mountAdminPanel = (
       newType.addEventListener('change', syncUpload);
     }
 
-    const field = (labelText: string, control: HTMLElement): HTMLElement =>
-      el('div', { class: 'tt-field' }, [el('label', { class: 'tt-label', text: labelText }), control]);
-
     const kids: Child[] = [el('strong', { style: { fontSize: '1.05rem' }, text: 'Create a tag' }), field('Tag name', newTag)];
 
     if (newType) {
@@ -300,7 +342,7 @@ export const mountAdminPanel = (
         el('span', { class: 'tt-mono', style: { flex: '1', minWidth: '8rem' }, text: entry.tag }),
       ];
 
-      if (engine.richText && isSuperuser()) {
+      if (engine.richText && engine.isSuperuser) {
         const select = el('select', { class: 'tt-input', style: { width: 'auto' } }, typeOptions());
         select.value = entry.type;
         select.addEventListener('change', () => void handleChangeType(entry.tag, select.value as TagType));
@@ -323,7 +365,7 @@ export const mountAdminPanel = (
         }),
       );
 
-      if (isSuperuser()) {
+      if (engine.isSuperuser) {
         header.push(
           el('button', { class: 'tt-btn tt-danger', type: 'button', text: 'Delete', onclick: () => void handleDelete(entry.tag) }),
         );
@@ -457,7 +499,7 @@ export const mountAdminPanel = (
 
     const draw = (): void => {
       clear(listWrap);
-      const { pageItems, totalPages, currentPage, matchCount } = filterPage(editSearch, editPage);
+      const { pageItems, totalPages, currentPage, matchCount } = filterPage(entries, (entry) => entry.tag, editSearch, editPage);
 
       if (entries.length === 0) {
         listWrap.append(el('span', { class: 'tt-hint', text: 'There are no tags to edit yet.' }));
@@ -497,6 +539,437 @@ export const mountAdminPanel = (
     return el('div', { class: 'tt-card' }, [el('strong', { style: { fontSize: '1.05rem' }, text: 'Edit tags' }), search, listWrap]);
   };
 
+  //The users tab: add a user, and change the role, password, or existence of one
+  //that is already there. Only a superuser reaches this. Every rule below is
+  //enforced by the server too; showing it here just saves somebody the error.
+  const buildUsersTab = (): HTMLElement => {
+    //Which row has its password field open. One at a time, so the list stays a
+    //list rather than a column of password boxes.
+    let openPasswordFor: string | null = null;
+
+    const listWrap = el('div', { style: { display: 'flex', flexDirection: 'column', gap: '0.6rem' } });
+
+    const newEmail = el('input', { class: 'tt-input', type: 'email', autocomplete: 'off', placeholder: 'name@example.com' });
+    const newPassword = el('input', { class: 'tt-input', type: 'password', autocomplete: 'new-password' });
+    const newRole = el('select', { class: 'tt-input' }, roleOptions());
+    const createError = el('span', { class: 'tt-error' });
+    createError.style.display = 'none';
+    const createButton = el('button', { class: 'tt-btn', style: { alignSelf: 'flex-start' }, type: 'button', text: 'Create user' });
+
+    const showCreateError = (message: string): void => {
+      createError.textContent = message;
+      createError.style.display = '';
+    };
+
+    const handleCreate = async (): Promise<void> => {
+      createError.style.display = 'none';
+      const email = newEmail.value.trim();
+
+      //The same two checks the server makes, so a typo comes back straight away
+      //instead of as a 400 after a round trip. A duplicate address can only be
+      //found by asking the server, so that one arrives as a 409.
+      if (!isValidEmail(email)) {
+        showCreateError('Enter a valid email address.');
+
+        return;
+      }
+
+      if (newPassword.value.length < MIN_PASSWORD_LENGTH) {
+        showCreateError(`The password must be at least ${MIN_PASSWORD_LENGTH} characters.`);
+
+        return;
+      }
+
+      createButton.disabled = true;
+
+      try {
+        await engine.createUser(email, newPassword.value, newRole.value as Role);
+        newEmail.value = '';
+        newPassword.value = '';
+        newRole.value = ROLES.EDITOR;
+        engine.notify(`Created the user "${email}".`, 'success');
+        await loadUsers();
+      } catch (createUserError) {
+        const message = createUserError instanceof Error ? createUserError.message : 'Could not create the user';
+        showCreateError(message);
+        engine.notify(message, 'error');
+      } finally {
+        createButton.disabled = false;
+      }
+    };
+
+    createButton.addEventListener('click', () => void handleCreate());
+
+    async function handleRoleChange(user: AuthUser, role: Role): Promise<void> {
+      try {
+        const updated = await engine.updateUserRole(user.id, role);
+        users = users.map((item) => (item.id === updated.id ? updated : item));
+        engine.notify(`${updated.email} is now ${updated.role === ROLES.SUPERUSER ? 'a superuser' : 'an editor'}.`, 'success');
+      } catch (roleError) {
+        engine.notify(roleError instanceof Error ? roleError.message : 'Could not change the role', 'error');
+      }
+
+      //Either way the select is showing what was picked, which after a refusal
+      //is not what the user actually has, so redraw from state.
+      draw();
+    }
+
+    async function handleDeleteUser(user: AuthUser): Promise<void> {
+      const ok = await confirm(`Delete the user "${user.email}"? This cannot be undone.`, {
+        confirmLabel: 'Delete',
+        cancelLabel: 'Cancel',
+      });
+
+      if (!ok) {
+        return;
+      }
+
+      try {
+        await engine.deleteUser(user.id);
+        users = users.filter((item) => item.id !== user.id);
+
+        if (openPasswordFor === user.id) {
+          openPasswordFor = null;
+        }
+
+        draw();
+        engine.notify(`Deleted the user "${user.email}".`, 'success');
+      } catch (deleteError) {
+        engine.notify(deleteError instanceof Error ? deleteError.message : 'Could not delete the user', 'error');
+      }
+    }
+
+    //The reset password field, swapped into a row in place of nothing else, so
+    //it is obvious which user it belongs to.
+    const buildPasswordField = (user: AuthUser): HTMLElement => {
+      const input = el('input', { class: 'tt-input', type: 'password', autocomplete: 'new-password' });
+      const error = el('span', { class: 'tt-error' });
+      error.style.display = 'none';
+      const save = el('button', { class: 'tt-btn', style: { alignSelf: 'flex-start' }, type: 'button', text: 'Save password' });
+
+      const submit = async (): Promise<void> => {
+        error.style.display = 'none';
+
+        if (input.value.length < MIN_PASSWORD_LENGTH) {
+          error.textContent = `The password must be at least ${MIN_PASSWORD_LENGTH} characters.`;
+          error.style.display = '';
+
+          return;
+        }
+
+        save.disabled = true;
+
+        try {
+          await engine.updateUserPassword(user.id, input.value);
+          openPasswordFor = null;
+          draw();
+          engine.notify(`Set a new password for "${user.email}".`, 'success');
+        } catch (passwordError) {
+          const message = passwordError instanceof Error ? passwordError.message : 'Could not set the password';
+          error.textContent = message;
+          error.style.display = '';
+          engine.notify(message, 'error');
+        } finally {
+          save.disabled = false;
+        }
+      };
+
+      save.addEventListener('click', () => void submit());
+
+      return el('div', { style: { display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.75rem' } }, [
+        field('New password', input),
+        el('span', {
+          class: 'tt-hint',
+          text: 'A reset signs that user out everywhere. TweakTags sends no email, so tell them the new password yourself.',
+        }),
+        save,
+        error,
+      ]);
+    };
+
+    const drawRow = (user: AuthUser): HTMLElement => {
+      const isSelf = user.id === engine.user?.id;
+      const superuserCount = users.filter((item) => item.role === ROLES.SUPERUSER).length;
+
+      const header: Child[] = [
+        el('span', { class: 'tt-mono', style: { flex: '1', minWidth: '10rem' }, title: user.email, text: user.email }),
+      ];
+
+      const select = el('select', { class: 'tt-input', style: { width: 'auto' } }, roleOptions());
+      select.value = user.role;
+
+      if (isSelf) {
+        //Self demotion is refused, so a lone superuser cannot lock everyone out
+        //of the install by accident.
+        select.disabled = true;
+        select.title = 'You cannot change your own role. Promote somebody else first.';
+      } else if (user.role === ROLES.SUPERUSER && superuserCount === 1) {
+        //Demoting the last superuser leaves nobody who can manage users, so the
+        //server refuses it. Only that one option is off; promoting still works.
+        const editorOption = select.querySelector<HTMLOptionElement>(`option[value="${ROLES.EDITOR}"]`);
+
+        if (editorOption) {
+          editorOption.disabled = true;
+        }
+
+        select.title = 'This is the only superuser. Promote somebody else before demoting them.';
+      }
+
+      select.addEventListener('change', () => void handleRoleChange(user, select.value as Role));
+      header.push(select);
+
+      const passwordOpen = openPasswordFor === user.id;
+
+      header.push(
+        el('button', {
+          class: 'tt-btn tt-subtle',
+          type: 'button',
+          text: passwordOpen ? 'Cancel' : 'Set password',
+          onclick: () => {
+            openPasswordFor = passwordOpen ? null : user.id;
+            draw();
+          },
+        }),
+      );
+
+      //Deleting yourself is refused, and there is no reason to offer a button
+      //that can only ever fail. Your own account is the Account tab's business.
+      if (!isSelf) {
+        const remove = el('button', {
+          class: 'tt-btn tt-danger',
+          type: 'button',
+          text: 'Delete',
+          onclick: () => void handleDeleteUser(user),
+        });
+
+        if (user.role === ROLES.SUPERUSER) {
+          //Judged on the role they hold right now, so demoting them turns this
+          //back on. Shown disabled rather than hidden, so the way out is clear.
+          remove.disabled = true;
+          remove.title = 'A superuser cannot be deleted. Change their role to editor first.';
+        }
+
+        header.push(remove);
+      }
+
+      const kids: Child[] = [
+        el('div', { style: { display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' } }, header),
+      ];
+
+      if (isSelf) {
+        kids.push(el('span', { class: 'tt-hint', text: 'This is you. Your own email and password live on the Account tab.' }));
+      }
+
+      if (passwordOpen) {
+        kids.push(buildPasswordField(user));
+      }
+
+      return el('div', { class: 'tt-listrow', style: { flexDirection: 'column', alignItems: 'stretch' } }, kids);
+    };
+
+    const draw = (): void => {
+      clear(listWrap);
+
+      if (usersLoading && !usersLoaded) {
+        listWrap.append(el('span', { class: 'tt-hint', text: 'Loading users...' }));
+
+        return;
+      }
+
+      const { pageItems, totalPages, currentPage, matchCount } = filterPage(users, (user) => user.email, usersSearch, usersPage);
+
+      //Only reachable when the load failed, since you are always in your own
+      //list. The toast says what went wrong, so this just stays quiet.
+      if (users.length === 0) {
+        listWrap.append(el('span', { class: 'tt-hint', text: 'There are no users to show.' }));
+
+        return;
+      }
+
+      if (matchCount === 0) {
+        listWrap.append(el('span', { class: 'tt-hint', text: `No users match "${usersSearch}".` }));
+
+        return;
+      }
+
+      for (const user of pageItems) {
+        listWrap.append(drawRow(user));
+      }
+
+      if (totalPages > 1) {
+        listWrap.append(
+          buildPager(currentPage, totalPages, (page) => {
+            usersPage = page;
+            draw();
+          }),
+        );
+      }
+    };
+
+    const search = el('input', { class: 'tt-input', type: 'search', placeholder: 'Search users...', value: usersSearch });
+    search.addEventListener('input', () => {
+      usersSearch = search.value;
+      usersPage = 0;
+      draw();
+    });
+
+    //The first visit to the tab pays for the load; after that the list is kept
+    //in state and only a change to it redraws.
+    if (!usersLoaded && !usersLoading) {
+      void loadUsers();
+    }
+
+    draw();
+
+    return el('div', { class: 'tt-card' }, [
+      el('strong', { style: { fontSize: '1.05rem' }, text: 'Add a user' }),
+      field('Email', newEmail),
+      field('Password', newPassword),
+      field('Role', newRole),
+      createButton,
+      createError,
+      el('span', {
+        class: 'tt-hint',
+        text: `An editor can change content for tags that already exist. A superuser can also create tags and manage users. Passwords are at least ${MIN_PASSWORD_LENGTH} characters.`,
+      }),
+      el('hr', { class: 'tt-divider' }),
+      el('strong', { style: { fontSize: '1.05rem' }, text: 'Existing users' }),
+      search,
+      listWrap,
+    ]);
+  };
+
+  //The account tab: your own email and password. Every signed in user gets this,
+  //editors included, so it sits outside the superuser guard. Both changes need
+  //the current password, which is why they are two separate forms rather than
+  //one form with a shared field.
+  const buildAccountTab = (): HTMLElement => {
+    const emailCurrent = el('input', { class: 'tt-input', type: 'password', autocomplete: 'current-password' });
+    const emailNext = el('input', { class: 'tt-input', type: 'email', autocomplete: 'username', value: engine.user?.email ?? '' });
+    const emailError = el('span', { class: 'tt-error' });
+    emailError.style.display = 'none';
+    const emailButton = el('button', { class: 'tt-btn', style: { alignSelf: 'flex-start' }, type: 'button', text: 'Change email' });
+
+    const showEmailError = (message: string): void => {
+      emailError.textContent = message;
+      emailError.style.display = '';
+    };
+
+    const submitEmail = async (): Promise<void> => {
+      emailError.style.display = 'none';
+      const email = emailNext.value.trim();
+
+      if (!isValidEmail(email)) {
+        showEmailError('Enter a valid email address.');
+
+        return;
+      }
+
+      if (emailCurrent.value === '') {
+        showEmailError('Enter your current password.');
+
+        return;
+      }
+
+      emailButton.disabled = true;
+
+      try {
+        const updated = await engine.updateMyEmail(emailCurrent.value, email);
+        emailCurrent.value = '';
+        engine.notify(`Your email is now "${updated.email}".`, 'success');
+      } catch (updateError) {
+        const message = updateError instanceof Error ? updateError.message : 'Could not change your email';
+        showEmailError(message);
+        engine.notify(message, 'error');
+      } finally {
+        emailButton.disabled = false;
+      }
+    };
+
+    emailButton.addEventListener('click', () => void submitEmail());
+
+    const passwordCurrent = el('input', { class: 'tt-input', type: 'password', autocomplete: 'current-password' });
+    const passwordNext = el('input', { class: 'tt-input', type: 'password', autocomplete: 'new-password' });
+    const passwordRepeat = el('input', { class: 'tt-input', type: 'password', autocomplete: 'new-password' });
+    const passwordError = el('span', { class: 'tt-error' });
+    passwordError.style.display = 'none';
+    const passwordButton = el('button', {
+      class: 'tt-btn',
+      style: { alignSelf: 'flex-start' },
+      type: 'button',
+      text: 'Change password',
+    });
+
+    const showPasswordError = (message: string): void => {
+      passwordError.textContent = message;
+      passwordError.style.display = '';
+    };
+
+    const submitPassword = async (): Promise<void> => {
+      passwordError.style.display = 'none';
+
+      if (passwordNext.value.length < MIN_PASSWORD_LENGTH) {
+        showPasswordError(`The new password must be at least ${MIN_PASSWORD_LENGTH} characters.`);
+
+        return;
+      }
+
+      //Only here, not on the server: a mistyped repeat would otherwise be saved
+      //as a password nobody knows.
+      if (passwordNext.value !== passwordRepeat.value) {
+        showPasswordError('The two new passwords do not match.');
+
+        return;
+      }
+
+      if (passwordCurrent.value === '') {
+        showPasswordError('Enter your current password.');
+
+        return;
+      }
+
+      passwordButton.disabled = true;
+
+      try {
+        await engine.updateMyPassword(passwordCurrent.value, passwordNext.value);
+        passwordCurrent.value = '';
+        passwordNext.value = '';
+        passwordRepeat.value = '';
+        engine.notify('Your password has been changed.', 'success');
+      } catch (updateError) {
+        const message = updateError instanceof Error ? updateError.message : 'Could not change your password';
+        showPasswordError(message);
+        engine.notify(message, 'error');
+      } finally {
+        passwordButton.disabled = false;
+      }
+    };
+
+    passwordButton.addEventListener('click', () => void submitPassword());
+
+    const emailCard = el('div', { class: 'tt-card' }, [
+      el('strong', { style: { fontSize: '1.05rem' }, text: 'Change your email' }),
+      el('span', { class: 'tt-hint', text: `You are signed in as ${engine.user?.email ?? ''}.` }),
+      field('New email', emailNext),
+      field('Current password', emailCurrent),
+      emailButton,
+      emailError,
+      el('span', { class: 'tt-hint', text: 'This is the address you sign in with, so use one you can still read.' }),
+    ]);
+
+    const passwordCard = el('div', { class: 'tt-card' }, [
+      el('strong', { style: { fontSize: '1.05rem' }, text: 'Change your password' }),
+      field('Current password', passwordCurrent),
+      field('New password', passwordNext),
+      field('Repeat the new password', passwordRepeat),
+      passwordButton,
+      passwordError,
+      el('span', { class: 'tt-hint', text: 'You stay signed in here. Any other device you are signed in on is signed out.' }),
+    ]);
+
+    return el('div', { style: { display: 'flex', flexDirection: 'column', gap: '1rem' } }, [emailCard, passwordCard]);
+  };
+
   //Draws the current tab into the content area.
   const showContent = (): void => {
     if (!contentArea) {
@@ -511,21 +984,25 @@ export const mountAdminPanel = (
       return;
     }
 
-    const activeTab = tab === 'create' && !isSuperuser() ? 'view' : tab;
+    const activeTab = superuserOnly(tab);
 
     if (activeTab === 'view') {
       contentArea.append(buildViewTab());
     } else if (activeTab === 'create') {
       contentArea.append(buildCreateTab());
+    } else if (activeTab === 'users') {
+      contentArea.append(buildUsersTab());
+    } else if (activeTab === 'account') {
+      contentArea.append(buildAccountTab());
     } else {
       contentArea.append(buildEditTab());
     }
   };
 
-  const setTab = (next: 'view' | 'create' | 'edit'): void => {
+  const setTab = (next: Tab): void => {
     tab = next;
 
-    for (const key of ['view', 'create', 'edit'] as const) {
+    for (const key of ['view', 'create', 'edit', 'users', 'account'] as const) {
       const button = tabButtons[key];
 
       if (button) {
@@ -554,6 +1031,25 @@ export const mountAdminPanel = (
       engine.notify('Could not load the tags.', 'error');
     } finally {
       loading = false;
+      showContent();
+    }
+  };
+
+  //Users load on their own rather than through loading, which belongs to the tag
+  //lists. Redrawing the tab when it lands is what the users tab watches for.
+  const loadUsers = async (): Promise<void> => {
+    usersLoading = true;
+
+    try {
+      users = await engine.listUsers();
+    } catch {
+      engine.notify('Could not load the users.', 'error');
+    } finally {
+      //Marks the attempt, not the success. The redraw below rebuilds the tab,
+      //and the tab loads when it has not tried yet, so a failure that left this
+      //false would send the two of them round in circles.
+      usersLoaded = true;
+      usersLoading = false;
       showContent();
     }
   };
@@ -615,7 +1111,7 @@ export const mountAdminPanel = (
       ]),
     ]);
 
-    const activeTab = tab === 'create' && !isSuperuser() ? 'view' : tab;
+    const activeTab = superuserOnly(tab);
     const tabRow: Child[] = [];
 
     tabButtons.view = el('button', {
@@ -626,7 +1122,7 @@ export const mountAdminPanel = (
     });
     tabRow.push(tabButtons.view);
 
-    if (isSuperuser()) {
+    if (engine.isSuperuser) {
       tabButtons.create = el('button', {
         class: activeTab === 'create' ? 'tt-btn' : 'tt-btn tt-subtle',
         type: 'button',
@@ -643,6 +1139,25 @@ export const mountAdminPanel = (
       onclick: () => setTab('edit'),
     });
     tabRow.push(tabButtons.edit);
+
+    if (engine.isSuperuser) {
+      tabButtons.users = el('button', {
+        class: activeTab === 'users' ? 'tt-btn' : 'tt-btn tt-subtle',
+        type: 'button',
+        text: 'Users',
+        onclick: () => setTab('users'),
+      });
+      tabRow.push(tabButtons.users);
+    }
+
+    //Outside the superuser guard on purpose: an editor has an account too.
+    tabButtons.account = el('button', {
+      class: activeTab === 'account' ? 'tt-btn' : 'tt-btn tt-subtle',
+      type: 'button',
+      text: 'Account',
+      onclick: () => setTab('account'),
+    });
+    tabRow.push(tabButtons.account);
 
     tabRow.push(
       el('button', {
@@ -671,15 +1186,19 @@ export const mountAdminPanel = (
     }
   };
 
-  //Only swap between login and dashboard when the signed in state changes, so a
-  //background content load does not reset the tab or steal input focus.
-  let wasSignedIn = engine.user !== null;
+  //Only redraw when who is signed in changes, so a background content load does
+  //not reset the tab or steal input focus. The address is part of that: a user
+  //can change their own email, and comparing signed in state alone would leave
+  //the old one in the topbar and in the account form.
+  const identity = (): string => (engine.user ? `1|${engine.user.email}` : '0');
+
+  let lastIdentity = identity();
 
   const unsubscribe = engine.subscribe(() => {
-    const signedIn = engine.user !== null;
+    const next = identity();
 
-    if (signedIn !== wasSignedIn) {
-      wasSignedIn = signedIn;
+    if (next !== lastIdentity) {
+      lastIdentity = next;
       render();
     }
   });

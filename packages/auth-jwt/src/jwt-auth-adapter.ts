@@ -141,7 +141,13 @@ export class JwtAuthAdapter implements AuthAdapter {
         }
       }
 
-      return { userId: String(decoded.sub), role: toRole(decoded.role) };
+      return {
+        userId: String(decoded.sub),
+        role: toRole(decoded.role),
+        //Carried through so a user changing their own password can end every
+        //session except the one they are typing on.
+        ...(decoded.fam ? { familyId: String(decoded.fam) } : {}),
+      };
     } catch {
       //Any verify failure, like an expired or tampered token, means no actor.
       return null;
@@ -227,6 +233,19 @@ export class JwtAuthAdapter implements AuthAdapter {
 
   public async hashPassword(password: string): Promise<string> {
     return bcrypt.hash(password, SALT_ROUNDS);
+  }
+
+  //Check a password without starting a session. Same comparison login makes,
+  //minus the token pair, so proving who you are before changing your email or
+  //password does not leave a refresh token row behind every time.
+  public async verifyPassword(email: string, password: string): Promise<boolean> {
+    const user = await this.store.findUserByEmail(email);
+
+    if (!user) {
+      return false;
+    }
+
+    return bcrypt.compare(password, user.passwordHash);
   }
 
   public async createUser(email: string, password: string, role: Role): Promise<Actor> {

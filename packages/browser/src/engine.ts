@@ -8,9 +8,11 @@
 import {
   ACTIONS,
   DEFAULT_API_BASE_PATH,
+  ROLES,
   type AuthResult,
   type AuthUser,
   type ContentRecord,
+  type Role,
   type TagType,
   type UploadTarget,
 } from '@tweaktags/core';
@@ -166,6 +168,12 @@ export class TweakTagsEngine {
     return this._user !== null;
   }
 
+  //Managing tags and users is superuser work. Every panel needs this and none of
+  //them should be retyping the role comparison.
+  public get isSuperuser(): boolean {
+    return this._user?.role === ROLES.SUPERUSER;
+  }
+
   public get hasUnsavedChanges(): boolean {
     return this._hasUnsavedChanges;
   }
@@ -216,6 +224,7 @@ export class TweakTagsEngine {
       user: this._user,
       isEditing: this._isEditing,
       canEdit: this.canEdit,
+      isSuperuser: this.isSuperuser,
       editInView: this._editInView,
       richText: this._richText,
       mediaUpload: this._mediaUpload,
@@ -372,6 +381,69 @@ export class TweakTagsEngine {
     //Mark it as having no content now. Elements keep their last text until the
     //page reloads, at which point the crawler shows the fallback again.
     this.setContent(tag, null);
+  }
+
+  //Reads every user. Superuser only.
+  public async listUsers(): Promise<AuthUser[]> {
+    const result = await this.api.request<{ users: AuthUser[] }>(ACTIONS.LIST_USERS);
+
+    return result.users;
+  }
+
+  //Adds a user with a starting password and role. Superuser only.
+  public async createUser(email: string, password: string, role: Role): Promise<AuthUser> {
+    const result = await this.api.request<{ user: AuthUser }>(ACTIONS.CREATE_USER, {
+      email,
+      password,
+      role,
+    });
+
+    return result.user;
+  }
+
+  //Changes somebody else's role, which signs them out. Superuser only.
+  //The server refuses to change your own role, so there is no case where this
+  //could quietly change what the current user is allowed to do.
+  public async updateUserRole(userId: string, role: Role): Promise<AuthUser> {
+    const result = await this.api.request<{ user: AuthUser }>(ACTIONS.UPDATE_USER_ROLE, {
+      userId,
+      role,
+    });
+
+    return result.user;
+  }
+
+  //Resets somebody else's password, which signs them out. Superuser only.
+  public async updateUserPassword(userId: string, password: string): Promise<void> {
+    await this.api.request(ACTIONS.UPDATE_USER_PASSWORD, { userId, password });
+  }
+
+  //Removes a user. Superuser only, and the server refuses if the target is
+  //currently a superuser or is you.
+  public async deleteUser(userId: string): Promise<void> {
+    await this.api.request(ACTIONS.DELETE_USER, { userId });
+  }
+
+  //Changes the current user's own email. Any signed in user may do this, and the
+  //current password is required.
+  public async updateMyEmail(currentPassword: string, email: string): Promise<AuthUser> {
+    const result = await this.api.request<{ user: AuthUser }>(ACTIONS.UPDATE_MY_EMAIL, {
+      currentPassword,
+      email,
+    });
+
+    //Without this the address in the toolbar and the account form stays the old
+    //one until the next reload, which reads as the change not having worked.
+    this._user = result.user;
+    this.emitChange();
+
+    return result.user;
+  }
+
+  //Changes the current user's own password. Any signed in user may do this. The
+  //server ends their other sessions but leaves this one signed in.
+  public async updateMyPassword(currentPassword: string, password: string): Promise<void> {
+    await this.api.request(ACTIONS.UPDATE_MY_PASSWORD, { currentPassword, password });
   }
 
   //Reads the full list of tags that exist in the database.

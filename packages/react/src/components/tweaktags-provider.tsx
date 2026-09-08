@@ -8,7 +8,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type { ReactElement, ReactNode } from 'react';
 
-import { DEFAULT_API_BASE_PATH, type TagType } from '@tweaktags/core';
+import { DEFAULT_API_BASE_PATH, type Role, type TagType } from '@tweaktags/core';
 import { TweakTagsEngine, type ToolbarPosition } from '@tweaktags/browser';
 
 import { TweakTagsContext, type TweakTagsContextValue } from '../context/tweaktags-context.js';
@@ -172,6 +172,17 @@ export const TweakTagsProvider = ({
       deleteTag: (tag: string) => engine.deleteTag(tag),
       setTagType: (tag: string, type: TagType) => engine.setTagType(tag, type),
       listTags: () => engine.listTags(),
+      listUsers: () => engine.listUsers(),
+      createUser: (email: string, password: string, role: Role) =>
+        engine.createUser(email, password, role),
+      updateUserRole: (userId: string, role: Role) => engine.updateUserRole(userId, role),
+      updateUserPassword: (userId: string, password: string) =>
+        engine.updateUserPassword(userId, password),
+      deleteUser: (userId: string) => engine.deleteUser(userId),
+      updateMyEmail: (currentPassword: string, email: string) =>
+        engine.updateMyEmail(currentPassword, email),
+      updateMyPassword: (currentPassword: string, password: string) =>
+        engine.updateMyPassword(currentPassword, password),
       loadContent: (tags: string[]) => engine.loadContent(tags),
       pageContentFor: (tag: string, type: TagType) => engine.pageContentFor(tag, type),
       uploadMedia: (file: File) => engine.uploadMedia(file),
@@ -192,6 +203,7 @@ export const TweakTagsProvider = ({
       mediaUpload: engine.mediaUpload,
       whiteLabel: engine.whiteLabel,
       canEdit: engine.canEdit,
+      isSuperuser: engine.isSuperuser,
       hasUnsavedChanges: engine.hasUnsavedChanges,
       ...actions,
       confirm,

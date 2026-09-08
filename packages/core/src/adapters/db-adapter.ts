@@ -12,6 +12,7 @@ import type {
   ContentRecord,
   CreateUserInput,
   RefreshTokenRecord,
+  Role,
   StoredUser,
   TagType,
 } from '../types/index.js';
@@ -79,6 +80,31 @@ export interface DbAdapter extends UserStore, RefreshTokenStore {
 
   //List every user, without their password hashes.
   listUsers(): Promise<AuthUser[]>;
+
+  //The rest of user management, all keyed by id rather than email. They live
+  //here rather than on UserStore because the auth adapter never needs them, and
+  //because an email is not a stable key once people can change their own.
+  //Note the older updateUserPassword above is keyed by email and stays that way
+  //for the cli, which has an address and no id. The setUser prefix is what keeps
+  //the two apart at a call site.
+
+  //Change one user's role. False when no user has that id.
+  setUserRole(id: string, role: Role): Promise<boolean>;
+
+  //Change one user's password hash. False when no user has that id.
+  setUserPassword(id: string, passwordHash: string): Promise<boolean>;
+
+  //Change one user's email. False when no user has that id, and throws a
+  //conflict when somebody else already has that address.
+  setUserEmail(id: string, email: string): Promise<boolean>;
+
+  //Remove a user. False when no user has that id.
+  deleteUser(id: string): Promise<boolean>;
+
+  //Delete every refresh token belonging to a user, which ends their sessions.
+  //One family can be spared, so somebody changing their own password signs out
+  //their other devices without signing out the one they are typing on.
+  deleteRefreshTokensForUser(userId: string, exceptFamilyId?: string): Promise<void>;
 
   //Close any open database connections.
   close(): Promise<void>;

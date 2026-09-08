@@ -33,4 +33,12 @@ export type { ScannedElement } from './scanner.js';
 //Re-export the shared types and enums so a UI can import everything it needs
 //from one place, for example: import { ROLES, type ContentRecord } from '@tweaktags/browser'.
 export type * from '@tweaktags/core';
-export { ACTIONS, ERROR_CODES, ROLES, TAG_TYPES, isValidTag } from '@tweaktags/core';
+export {
+  ACTIONS,
+  ERROR_CODES,
+  MIN_PASSWORD_LENGTH,
+  ROLES,
+  TAG_TYPES,
+  isValidEmail,
+  isValidTag,
+} from '@tweaktags/core';

@@ -2,7 +2,7 @@
 
 Static pages to try `@tweaktags/vanillajs` with no backend to run. A small mock backend
 ([mock-api.js](mock-api.js)) patches `fetch` with an in-memory store, so you can really sign in,
-edit, create, and delete, all offline.
+edit, create, delete, and manage users, all offline.
 
 ## Run it
 
@@ -25,7 +25,8 @@ edit, create, and delete, all offline.
    ```
 
 3. Open `http://localhost:3000/examples/vanilla-demo/index.html` (adjust the port to what the
-   server prints) and sign in with **admin@example.com** / **password**.
+   server prints) and sign in with **admin@example.com** / **password**. There is a second seeded
+   account, **editor@example.com** / **password**, for seeing what an editor sees.
 
    Opening `index.html` straight from disk with `file://` also works, since the mock backend needs
    no network.
@@ -37,6 +38,18 @@ edit, create, and delete, all offline.
 - **admin.html** &mdash; the full page admin dashboard (`mountAdmin`).
 
 Reloading signs you out, since the mock keeps its state in memory.
+
+## Managing users
+
+Signed in as the admin, the **Users** panel in the edit bar and the **Users** tab in the admin
+dashboard both let you add users, change roles, reset passwords and delete people. Clicking your
+email address opens **Account**, where anybody signed in changes their own email or password.
+
+The mock enforces the same rules the real server does, so the demo is a fair test of them: you
+cannot change your own role, you cannot delete yourself, you cannot delete somebody who is
+currently a superuser (change them to an editor first), and changing your own email or password
+needs your current password. Sign in as the editor to see the Users panel disappear while Account
+stays.
 
 ## Notes
 

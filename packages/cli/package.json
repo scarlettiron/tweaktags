@@ -1,6 +1,6 @@
 {
   "name": "@tweaktags/cli",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "Command line tools for TweakTags, the self-hosted inline CMS and visual editor for Next.js, React, and plain HTML. Run migrations and create your first admin user.",
   "keywords": [
     "tweaktags",

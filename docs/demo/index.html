@@ -6,7 +6,7 @@
     <title>TweakTags live demo &mdash; edit this page in your browser</title>
     <meta
       name="description"
-      content="A live, no signup demo of TweakTags, the self-hosted inline CMS for Next.js, React, and plain HTML. Sign in and edit the text and images on this page."
+      content="A live, no signup demo of TweakTags, the self-hosted inline CMS for Next.js, React, and plain HTML. Sign in and edit the text and images on this page, then manage users from the same bar."
     />
     <meta name="author" content="Scarlett A. Scott" />
     <link rel="canonical" href="https://scarlettiron.github.io/tweaktags/demo/" />
@@ -125,6 +125,17 @@
         margin: 1.5rem 0;
       }
 
+      /*A note is usually one paragraph, but the user management one lists things
+        to try, and the browser default indent would crowd the colored border.*/
+      .note ul {
+        margin: 0.6rem 0 0;
+        padding-left: 1.2rem;
+      }
+
+      .note li {
+        margin-bottom: 0.4rem;
+      }
+
       /*The pretend customer website that the editing happens on.*/
       .site-demo {
         margin: 2rem 0;
@@ -228,6 +239,9 @@
           Use the demo account:
           <br />
           <span class="creds">admin@example.com &nbsp;/&nbsp; password</span>
+          <br />
+          There is a second account, <span class="creds">editor@example.com &nbsp;/&nbsp; password</span>,
+          if you want to see what an editor sees.
         </li>
         <li>Click <strong>Edit page</strong>. The editable spots pick up a dashed outline.</li>
         <li>Click the heading or the paragraph below and type. Try the toolbar on the rich text.</li>
@@ -260,6 +274,28 @@
         the saved content, and made those elements editable for the signed in user. Everyone else
         sees the saved content and nothing else. That is the whole idea: you bolt it onto a site you
         already have, instead of rebuilding the site around a CMS.
+      </div>
+
+      <div class="note">
+        <strong>Try managing users.</strong> Signed in as the admin, open <strong>Users</strong> in
+        the bar. You can add somebody, change a role, reset a password, or delete a user. The rules
+        are worth poking at, because the backend enforces them rather than the buttons hiding them:
+        <ul>
+          <li>Your own row has no Delete, and its role cannot be changed.</li>
+          <li>
+            A superuser cannot be deleted. Change them to an editor first, then the Delete lights
+            up. Removing an administrator is meant to be two decisions.
+          </li>
+          <li>
+            Click your email address in the bar to open <strong>Account</strong> and change your own
+            email or password. Both ask for your current password first. Change the email and watch
+            the address in the bar update straight away.
+          </li>
+          <li>
+            Sign in as <span class="creds">editor@example.com</span> and the Users panel is gone,
+            but Account is still there. Managing people is superuser work; managing yourself is not.
+          </li>
+        </ul>
       </div>
 
       <p>

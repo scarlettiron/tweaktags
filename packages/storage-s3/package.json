@@ -1,6 +1,6 @@
 {
   "name": "@tweaktags/storage-s3",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "Media uploads to S3 or any S3 compatible store for TweakTags, the self-hosted inline CMS for Next.js and React. Uses short lived presigned uploads.",
   "keywords": [
     "tweaktags",

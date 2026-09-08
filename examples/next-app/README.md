@@ -52,6 +52,12 @@ These steps assume you run them from a WSL terminal where Node and pnpm work nat
    three editable spots, then click away to save. Reload the page to confirm the change was
    stored in the database.
 
+7. Add somebody else. The superuser you just made has a **Users** panel in the edit bar, so this
+   is the last time you need the terminal for it: add an editor there, sign out, and sign back in
+   as them to see the difference. An editor can change content but has no Users panel. Both roles
+   get an **Account** panel, reached by clicking the email address in the bar, for changing their
+   own email and password.
+
 ## Checking the database
 
 You can confirm the saved rows directly:

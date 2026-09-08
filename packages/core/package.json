@@ -1,6 +1,6 @@
 {
   "name": "@tweaktags/core",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "Core of TweakTags, the self-hosted inline CMS and visual editor for Next.js, React, and plain HTML. Types, config loader, adapter interfaces, and the request handler.",
   "keywords": [
     "tweaktags",

@@ -20,6 +20,7 @@ import {
   type CreateUserInput,
   type DbAdapter,
   type RefreshTokenRecord,
+  type Role,
   type StorageAdapter,
   type StoredUser,
   type TagType,
@@ -129,16 +130,44 @@ class FakeDb implements DbAdapter {
       .sort();
   }
 
-  async findUserByEmail(): Promise<StoredUser | null> {
-    return null;
+  //Real rows rather than canned answers, because the user management rules are
+  //all about what the database says: who else is a superuser, whether a target
+  //exists, and whether the caller's own row still says what their token says.
+  //The seeded ids match the ones fakeAuth.verify hands out for its two tokens.
+  public users = new Map<string, StoredUser>([
+    ['1', { id: '1', email: 'super@example.com', role: 'superuser', passwordHash: 'hash:secret' }],
+    ['2', { id: '2', email: 'editor@example.com', role: 'editor', passwordHash: 'hash:secret' }],
+  ]);
+
+  private nextUserId = 3;
+
+  //Every refresh token deletion the handler asks for, so tests can assert that
+  //sessions were ended and that a self password change spared its own family.
+  public revoked: Array<{ userId: string; exceptFamilyId?: string }> = [];
+
+  async findUserByEmail(email: string): Promise<StoredUser | null> {
+    return [...this.users.values()].find((user) => user.email === email) ?? null;
   }
 
   async findUserById(id: string): Promise<StoredUser | null> {
-    return { id, email: 'user@example.com', role: 'superuser', passwordHash: 'x' };
+    return this.users.get(id) ?? null;
   }
 
   async createUser(input: CreateUserInput): Promise<StoredUser> {
-    return { id: '1', email: input.email, role: input.role, passwordHash: input.passwordHash };
+    if (await this.findUserByEmail(input.email)) {
+      throw conflict(`A user with the email "${input.email}" already exists`);
+    }
+
+    const user: StoredUser = {
+      id: String(this.nextUserId++),
+      email: input.email,
+      role: input.role,
+      passwordHash: input.passwordHash,
+    };
+
+    this.users.set(user.id, user);
+
+    return user;
   }
 
   async updateUserPassword(): Promise<boolean> {
@@ -146,7 +175,61 @@ class FakeDb implements DbAdapter {
   }
 
   async listUsers(): Promise<AuthUser[]> {
-    return [];
+    return [...this.users.values()]
+      .map(({ id, email, role }) => ({ id, email, role }))
+      .sort((a, b) => a.email.localeCompare(b.email));
+  }
+
+  async setUserRole(id: string, role: Role): Promise<boolean> {
+    const user = this.users.get(id);
+
+    if (!user) {
+      return false;
+    }
+
+    this.users.set(id, { ...user, role });
+
+    return true;
+  }
+
+  async setUserPassword(id: string, passwordHash: string): Promise<boolean> {
+    const user = this.users.get(id);
+
+    if (!user) {
+      return false;
+    }
+
+    this.users.set(id, { ...user, passwordHash });
+
+    return true;
+  }
+
+  async setUserEmail(id: string, email: string): Promise<boolean> {
+    const user = this.users.get(id);
+
+    if (!user) {
+      return false;
+    }
+
+    const taken = [...this.users.values()].some(
+      (other) => other.email === email && other.id !== id,
+    );
+
+    if (taken) {
+      throw conflict(`A user with the email "${email}" already exists`);
+    }
+
+    this.users.set(id, { ...user, email });
+
+    return true;
+  }
+
+  async deleteUser(id: string): Promise<boolean> {
+    return this.users.delete(id);
+  }
+
+  async deleteRefreshTokensForUser(userId: string, exceptFamilyId?: string): Promise<void> {
+    this.revoked.push({ userId, exceptFamilyId });
   }
 
   async saveRefreshToken(): Promise<void> {}
@@ -180,11 +263,11 @@ const fakeAuth: AuthAdapter = {
   },
   async verify(token: string): Promise<Actor | null> {
     if (token === 'super') {
-      return { userId: '1', role: 'superuser' };
+      return { userId: '1', role: 'superuser', familyId: 'super-family' };
     }
 
     if (token === 'editor') {
-      return { userId: '2', role: 'editor' };
+      return { userId: '2', role: 'editor', familyId: 'editor-family' };
     }
 
     return null;
@@ -206,6 +289,11 @@ const fakeAuth: AuthAdapter = {
   },
   async createUser() {
     return { userId: '1', role: 'superuser' };
+  },
+  //hashPassword above returns `hash:${password}`, so the seeded rows hold
+  //"hash:secret" and this agrees with them without any special casing.
+  async verifyPassword(email: string, password: string) {
+    return password === 'secret' && email.includes('@');
   },
 };
 
@@ -681,6 +769,288 @@ describe('request handler', () => {
       expect(response.status).toBe(200);
       expect(String(response.body.uploadUrl)).toContain('drystrip/');
       expect(String(response.body.publicUrl)).toContain('drystrip/');
+    });
+  });
+
+  describe('managing users', () => {
+    it('refuses to list users without a token', async () => {
+      const response = await handle({ action: ACTIONS.LIST_USERS });
+
+      expect(response.status).toBe(401);
+    });
+
+    it('refuses to list users for an editor', async () => {
+      const response = await handle({ action: ACTIONS.LIST_USERS, authToken: 'editor' });
+
+      expect(response.status).toBe(403);
+    });
+
+    it('lists every user for a superuser', async () => {
+      const response = await handle({ action: ACTIONS.LIST_USERS, authToken: 'super' });
+
+      expect(response.status).toBe(200);
+      expect(response.body.users).toEqual([
+        { id: '2', email: 'editor@example.com', role: 'editor' },
+        { id: '1', email: 'super@example.com', role: 'superuser' },
+      ]);
+    });
+
+    //The freshness check. The token still claims superuser, but the row behind it
+    //says editor, so the demotion has to bite straight away rather than at the end
+    //of the access token life.
+    it('refuses a superuser token whose row has since been demoted', async () => {
+      db.users.set('1', {
+        id: '1',
+        email: 'super@example.com',
+        role: 'editor',
+        passwordHash: 'hash:secret',
+      });
+
+      const list = await handle({ action: ACTIONS.LIST_USERS, authToken: 'super' });
+      const create = await handle({
+        action: ACTIONS.CREATE_USER,
+        payload: { email: 'new@example.com', password: 'password1', role: 'editor' },
+        authToken: 'super',
+      });
+      const remove = await handle({
+        action: ACTIONS.DELETE_USER,
+        payload: { userId: '2' },
+        authToken: 'super',
+      });
+
+      expect(list.status).toBe(403);
+      expect(create.status).toBe(403);
+      expect(remove.status).toBe(403);
+      expect(db.users.has('2')).toBe(true);
+    });
+
+    it('creates a user', async () => {
+      const response = await handle({
+        action: ACTIONS.CREATE_USER,
+        payload: { email: 'new@example.com', password: 'password1', role: 'editor' },
+        authToken: 'super',
+      });
+
+      expect(response.status).toBe(201);
+      expect(response.body.user).toEqual({ id: '3', email: 'new@example.com', role: 'editor' });
+      expect(db.users.get('3')?.passwordHash).toBe('hash:password1');
+    });
+
+    it('refuses to create a user with an address somebody already has', async () => {
+      const response = await handle({
+        action: ACTIONS.CREATE_USER,
+        payload: { email: 'editor@example.com', password: 'password1', role: 'editor' },
+        authToken: 'super',
+      });
+
+      expect(response.status).toBe(409);
+    });
+
+    it('refuses a bad email, a short password and an unknown role', async () => {
+      const base = { password: 'password1', role: 'editor' };
+
+      const badEmail = await handle({
+        action: ACTIONS.CREATE_USER,
+        payload: { ...base, email: 'not-an-email' },
+        authToken: 'super',
+      });
+      const shortPassword = await handle({
+        action: ACTIONS.CREATE_USER,
+        payload: { ...base, email: 'new@example.com', password: 'short' },
+        authToken: 'super',
+      });
+      const badRole = await handle({
+        action: ACTIONS.CREATE_USER,
+        payload: { ...base, email: 'new@example.com', role: 'admin' },
+        authToken: 'super',
+      });
+
+      expect(badEmail.status).toBe(400);
+      expect(shortPassword.status).toBe(400);
+      expect(badRole.status).toBe(400);
+    });
+
+    it('refuses to change your own role', async () => {
+      const response = await handle({
+        action: ACTIONS.UPDATE_USER_ROLE,
+        payload: { userId: '1', role: 'editor' },
+        authToken: 'super',
+      });
+
+      expect(response.status).toBe(403);
+      expect(db.users.get('1')?.role).toBe('superuser');
+    });
+
+    it('changes the role of somebody else and ends their sessions', async () => {
+      const response = await handle({
+        action: ACTIONS.UPDATE_USER_ROLE,
+        payload: { userId: '2', role: 'superuser' },
+        authToken: 'super',
+      });
+
+      expect(response.status).toBe(200);
+      expect(db.users.get('2')?.role).toBe('superuser');
+      expect(db.revoked).toEqual([{ userId: '2', exceptFamilyId: undefined }]);
+    });
+
+    it('reports a missing user when changing a role', async () => {
+      const response = await handle({
+        action: ACTIONS.UPDATE_USER_ROLE,
+        payload: { userId: '99', role: 'editor' },
+        authToken: 'super',
+      });
+
+      expect(response.status).toBe(404);
+    });
+
+    it('resets the password of somebody else and ends their sessions', async () => {
+      const response = await handle({
+        action: ACTIONS.UPDATE_USER_PASSWORD,
+        payload: { userId: '2', password: 'brand-new-one' },
+        authToken: 'super',
+      });
+
+      expect(response.status).toBe(200);
+      expect(db.users.get('2')?.passwordHash).toBe('hash:brand-new-one');
+      expect(db.revoked).toEqual([{ userId: '2', exceptFamilyId: undefined }]);
+    });
+
+    it('refuses to delete your own account', async () => {
+      const response = await handle({
+        action: ACTIONS.DELETE_USER,
+        payload: { userId: '1' },
+        authToken: 'super',
+      });
+
+      expect(response.status).toBe(403);
+      expect(db.users.has('1')).toBe(true);
+    });
+
+    //The whole two step rule end to end: a superuser cannot be deleted outright,
+    //but demoting them first turns it into an ordinary delete.
+    it('deletes a superuser only after they have been demoted', async () => {
+      const created = await handle({
+        action: ACTIONS.CREATE_USER,
+        payload: { email: 'second@example.com', password: 'password1', role: 'superuser' },
+        authToken: 'super',
+      });
+
+      const userId = (created.body.user as AuthUser).id;
+
+      const refused = await handle({
+        action: ACTIONS.DELETE_USER,
+        payload: { userId },
+        authToken: 'super',
+      });
+
+      expect(refused.status).toBe(403);
+      expect(db.users.has(userId)).toBe(true);
+
+      await handle({
+        action: ACTIONS.UPDATE_USER_ROLE,
+        payload: { userId, role: 'editor' },
+        authToken: 'super',
+      });
+
+      const deleted = await handle({
+        action: ACTIONS.DELETE_USER,
+        payload: { userId },
+        authToken: 'super',
+      });
+
+      expect(deleted.status).toBe(200);
+      expect(deleted.body).toEqual({ ok: true, userId });
+      expect(db.users.has(userId)).toBe(false);
+      expect(db.revoked).toContainEqual({ userId, exceptFamilyId: undefined });
+    });
+
+    it('reports a missing user when deleting', async () => {
+      const response = await handle({
+        action: ACTIONS.DELETE_USER,
+        payload: { userId: '99' },
+        authToken: 'super',
+      });
+
+      expect(response.status).toBe(404);
+    });
+  });
+
+  describe('managing your own account', () => {
+    it('lets an editor change their own email', async () => {
+      const response = await handle({
+        action: ACTIONS.UPDATE_MY_EMAIL,
+        payload: { currentPassword: 'secret', email: 'new-editor@example.com' },
+        authToken: 'editor',
+      });
+
+      expect(response.status).toBe(200);
+      expect(response.body.user).toEqual({
+        id: '2',
+        email: 'new-editor@example.com',
+        role: 'editor',
+      });
+      expect(db.users.get('2')?.email).toBe('new-editor@example.com');
+      expect(db.revoked).toEqual([]);
+    });
+
+    //403 rather than 401, because the api client replays a 401 after refreshing
+    //and would submit the wrong password a second time.
+    it('refuses an email change with the wrong current password', async () => {
+      const response = await handle({
+        action: ACTIONS.UPDATE_MY_EMAIL,
+        payload: { currentPassword: 'wrong', email: 'new-editor@example.com' },
+        authToken: 'editor',
+      });
+
+      expect(response.status).toBe(403);
+      expect(db.users.get('2')?.email).toBe('editor@example.com');
+    });
+
+    it('refuses an email somebody else already has', async () => {
+      const response = await handle({
+        action: ACTIONS.UPDATE_MY_EMAIL,
+        payload: { currentPassword: 'secret', email: 'super@example.com' },
+        authToken: 'editor',
+      });
+
+      expect(response.status).toBe(409);
+    });
+
+    it('lets an editor change their own password and keeps them signed in here', async () => {
+      const response = await handle({
+        action: ACTIONS.UPDATE_MY_PASSWORD,
+        payload: { currentPassword: 'secret', password: 'password1' },
+        authToken: 'editor',
+      });
+
+      expect(response.status).toBe(200);
+      expect(db.users.get('2')?.passwordHash).toBe('hash:password1');
+      expect(db.revoked).toEqual([{ userId: '2', exceptFamilyId: 'editor-family' }]);
+    });
+
+    it('refuses a password change with the wrong current password', async () => {
+      const response = await handle({
+        action: ACTIONS.UPDATE_MY_PASSWORD,
+        payload: { currentPassword: 'wrong', password: 'password1' },
+        authToken: 'editor',
+      });
+
+      expect(response.status).toBe(403);
+      expect(db.users.get('2')?.passwordHash).toBe('hash:secret');
+    });
+
+    it('needs a token to change your own details', async () => {
+      const email = await handle({
+        action: ACTIONS.UPDATE_MY_EMAIL,
+        payload: { currentPassword: 'secret', email: 'nobody@example.com' },
+      });
+      const password = await handle({
+        action: ACTIONS.UPDATE_MY_PASSWORD,
+        payload: { currentPassword: 'secret', password: 'password1' },
+      });
+
+      expect(email.status).toBe(401);
+      expect(password.status).toBe(401);
     });
   });
 });

@@ -59,6 +59,19 @@ Providers and components: `TweakTagsProvider`, `TweakTagsEditBar`, `TweakTagsAdm
 `UploadButton`, `RichTextEditor`. Hooks: `useTweakTags`, `useEditableTag`, `useIsEditing`. The shared
 types and the `@tweaktags/browser` engine are re-exported too, so you can import them from here.
 
+### Managing users
+
+Superusers get a **Users** panel and everybody signed in gets an **Account** panel, both in the edit
+bar and as tabs in the full page admin panel. A superuser can add users, change roles, reset
+passwords and delete people; anybody, editors included, can change their own email and password
+after confirming their current one.
+
+Four rules are enforced on the server rather than only hidden here, so they hold even for somebody
+calling the API directly: you cannot change your own role, you cannot delete yourself, you cannot
+delete a user who is currently a superuser (change them to an editor first), and changing your own
+email or password needs your current password. See
+[Managing users](https://scarlettiron.github.io/tweaktags/#users) for the whole picture.
+
 ### Provider options
 
 | Prop | Default | What it does |

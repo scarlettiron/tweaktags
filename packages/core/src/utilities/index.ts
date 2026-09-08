@@ -14,7 +14,15 @@ export {
   conflict,
 } from './errors.js';
 
-export { requireString, optionalString, requireStringArray } from './validation.js';
+export {
+  requireString,
+  optionalString,
+  requireStringArray,
+  requireEmail,
+  requirePassword,
+  requireRole,
+  isValidEmail,
+} from './validation.js';
 
 export {
   isValidTag,

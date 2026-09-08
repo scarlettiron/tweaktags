@@ -714,6 +714,7 @@
         <a href="#toolbar">Edit bar &amp; toolbar</a>
         <a href="#popup">Popup editor</a>
         <a href="#admin">Admin panel</a>
+        <a href="#users">Managing users</a>
         <a href="#vanilla">No framework</a>
         <div class="group">Reference</div>
         <a href="#databases">Databases</a>
@@ -1139,6 +1140,148 @@ npx tweaktags create-superuser --email you@example.com --password a-strong-passw
             <code>shell</code>, <code>topbar</code>, <code>nav</code>, <code>card</code>,
             <code>input</code>, <code>button</code>, <code>subtleButton</code>,
             <code>dangerButton</code>, <code>label</code>, <code>listRow</code>, <code>badge</code>.
+          </p>
+        </section>
+
+        <!-- USERS -->
+        <section id="users">
+          <h2>Managing users</h2>
+          <p>
+            Adding an editor or resetting a password used to mean opening a terminal on the server.
+            Now it is a panel. Superusers get <strong>Users</strong>, everybody signed in gets
+            <strong>Account</strong>, and both show up in two places: as tabs in the full page admin
+            panel, and as panels in the floating edit bar.
+          </p>
+
+          <h3>What a superuser can do</h3>
+          <ul>
+            <li>See every user, with their email and role.</li>
+            <li>
+              Add a user by email, starting password and role. The password must be at least 8
+              characters.
+            </li>
+            <li>
+              Change somebody's role in either direction. Promoting an editor and demoting another
+              superuser are both allowed.
+            </li>
+            <li>Reset somebody's password without knowing their old one.</li>
+            <li>Delete a user.</li>
+          </ul>
+
+          <h3>What everybody can do</h3>
+          <p>
+            Editors included, anybody signed in can change their own email and their own password
+            from the <strong>Account</strong> panel. Both ask for the current password first, so
+            somebody who walks up to an unlocked laptop cannot quietly take the account over.
+          </p>
+
+          <h3>Four rules the server will not let you break</h3>
+          <p>
+            These are enforced on the server, not just hidden in the interface, so they hold even
+            for somebody calling the API directly.
+          </p>
+          <table>
+            <thead>
+              <tr><th>Rule</th><th>Why</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>You cannot change your own role</td>
+                <td>
+                  Otherwise the last superuser could demote themselves and leave nobody able to
+                  manage users, with no way back except editing the database by hand. Promote
+                  somebody else and let them change you.
+                </td>
+              </tr>
+              <tr>
+                <td>You cannot delete yourself</td>
+                <td>Same reason, more directly.</td>
+              </tr>
+              <tr>
+                <td>You cannot delete a superuser</td>
+                <td>
+                  Change their role to editor first, then delete them. Deliberate friction: removing
+                  an administrator should be two decisions, not one.
+                </td>
+              </tr>
+              <tr>
+                <td>Changing your own email or password needs your current password</td>
+                <td>A borrowed session should not be enough to take the account over.</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <p class="callout">
+            A demotion bites immediately, not when the access token expires. Every user management
+            action reads the caller's role from the database rather than trusting the role written
+            into their token, so a superuser demoted a second ago has already lost these powers.
+          </p>
+
+          <h3>Who gets signed out</h3>
+          <table>
+            <thead>
+              <tr><th>What happened</th><th>Whose sessions end</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Their role changed</td>
+                <td>Theirs, everywhere. The role lives inside the access token.</td>
+              </tr>
+              <tr>
+                <td>A superuser reset their password</td>
+                <td>Theirs, everywhere. A reset that left old sessions signed in would not be one.</td>
+              </tr>
+              <tr>
+                <td>They changed their own password</td>
+                <td>Their other devices. The one they are using stays signed in.</td>
+              </tr>
+              <tr>
+                <td>They changed their own email</td>
+                <td>Nobody. Only the name they sign in with changed.</td>
+              </tr>
+              <tr><td>They were deleted</td><td>Theirs, everywhere.</td></tr>
+            </tbody>
+          </table>
+
+          <div class="stage">
+            <span class="tag">Live preview &middot; users panel</span>
+            <div class="canvas" style="padding: 1.25rem">
+              <div class="v-admin v-font">
+                <div class="tabs">
+                  <button class="v-btn subtle">View tags</button>
+                  <button class="v-btn subtle">Edit tags</button>
+                  <button class="v-btn">Users</button>
+                  <button class="v-btn subtle">Account</button>
+                </div>
+                <div class="panel">
+                  <div class="v-listrow">
+                    <span style="flex: 1">you@example.com</span>
+                    <span class="v-badge">superuser</span>
+                    <span style="color: var(--muted)">that is you</span>
+                  </div>
+                  <div class="v-listrow">
+                    <span style="flex: 1">sam@example.com</span>
+                    <span class="v-badge">editor</span>
+                    <button class="v-btn subtle">Set password</button>
+                    <button class="v-btn subtle">Delete</button>
+                  </div>
+                  <div class="v-listrow">
+                    <span style="flex: 1">alex@example.com</span>
+                    <span class="v-badge">superuser</span>
+                    <button class="v-btn subtle">Set password</button>
+                    <span style="color: var(--muted)">change to editor to delete</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <p>
+            The command line has not gone anywhere. <code>create-user</code>,
+            <code>create-superuser</code> and <code>update-password</code> still work, and are still
+            how you make the very first superuser on a fresh install, before there is anybody to
+            sign in as. TweakTags sends no email, so somebody whose password was reset for them
+            finds out by being signed out. Tell them yourself.
           </p>
         </section>
 
@@ -1579,11 +1722,23 @@ npx tweaktags create-superuser --email you@example.com --password a-strong-passw
               off with one config flag if it gets in your way.
             </li>
             <li>
-              Two roles: a <strong>superuser</strong> manages tags, an <strong>editor</strong> can
-              only change content for tags that already exist. Saved content is checked for SQL
-              injection and dangerous HTML.
+              Two roles: a <strong>superuser</strong> manages tags and users, an
+              <strong>editor</strong> can only change content for tags that already exist. Saved
+              content is checked for SQL injection and dangerous HTML.
+            </li>
+            <li>
+              <a href="#users">User management</a> reads the caller's role from the database on
+              every call rather than trusting their token, so a demotion takes effect at once.
             </li>
           </ul>
+
+          <p class="callout">
+            Deleting somebody, changing their role, or resetting their password all delete their
+            refresh tokens, so they are signed out for good once their current access token runs
+            out. Until then, up to <code>accessTtlSeconds</code>, the token they already hold still
+            works for content edits. Set <code>strictRevocation: true</code> if you need a removal
+            to take effect the same second.
+          </p>
           <div class="code" data-lang="ts">
             <div class="bar"><span>tweaktags.config.ts &middot; auth options</span><button class="copy">Copy</button></div>
             <pre>auth: {

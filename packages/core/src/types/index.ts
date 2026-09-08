@@ -23,6 +23,11 @@ export type ErrorCode = (typeof ERROR_CODES)[keyof typeof ERROR_CODES];
 export interface Actor {
   userId: string;
   role: Role;
+
+  //Which family of refresh tokens this session belongs to, when the token
+  //carried one. It lets somebody changing their own password end every other
+  //session but the one they are using.
+  familyId?: string;
 }
 
 //A user as the outside world sees them, without any secret fields.

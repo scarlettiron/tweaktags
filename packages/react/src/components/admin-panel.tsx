@@ -8,7 +8,16 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import type { CSSProperties, ReactElement } from 'react';
 
-import { ROLES, isValidTag, type ContentRecord, type TagType } from '@tweaktags/core';
+import {
+  MIN_PASSWORD_LENGTH,
+  ROLES,
+  isValidEmail,
+  isValidTag,
+  type AuthUser,
+  type ContentRecord,
+  type Role,
+  type TagType,
+} from '@tweaktags/core';
 
 import { useTweakTags } from '../hooks/use-tweaktags.js';
 import { Spinner } from './spinner.js';
@@ -246,12 +255,14 @@ const ListControls = ({
   page,
   totalPages,
   onPage,
+  placeholder = 'Search tags...',
 }: {
   search: string;
   onSearch: (value: string) => void;
   page: number;
   totalPages: number;
   onPage: (page: number) => void;
+  placeholder?: string;
 }): ReactElement => {
   const s = useStyles();
 
@@ -260,7 +271,7 @@ const ListControls = ({
       <input
         style={{ ...s.input, flex: 1, minWidth: '12rem' }}
         type="search"
-        placeholder="Search tags..."
+        placeholder={placeholder}
         value={search}
         onChange={(event) => onSearch(event.target.value)}
       />
@@ -306,15 +317,17 @@ interface Entry {
   record: ContentRecord | null;
 }
 
-//Takes the full list of tags, keeps only the ones that match the search, and
-//returns just the slice for the current page along with the page count.
-const paginate = (
-  entries: Entry[],
+//Takes a full list, keeps only the rows that match the search, and returns just
+//the slice for the current page along with the page count. The searchable text
+//comes in as textOf, so the tag lists and the user list can share this.
+const paginate = <T,>(
+  items: T[],
   search: string,
   page: number,
-): { totalPages: number; currentPage: number; pageItems: Entry[]; matchCount: number } => {
+  textOf: (item: T) => string,
+): { totalPages: number; currentPage: number; pageItems: T[]; matchCount: number } => {
   const query = search.trim().toLowerCase();
-  const filtered = entries.filter((entry) => entry.tag.toLowerCase().includes(query));
+  const filtered = items.filter((item) => textOf(item).toLowerCase().includes(query));
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages - 1);
   const start = currentPage * PAGE_SIZE;
@@ -586,7 +599,7 @@ const ViewTab = ({ entries }: { entries: Entry[] }): ReactElement => {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(0);
 
-  const { totalPages, currentPage, pageItems, matchCount } = paginate(entries, search, page);
+  const { totalPages, currentPage, pageItems, matchCount } = paginate(entries, search, page, (entry) => entry.tag);
 
   return (
     <div style={s.card}>
@@ -639,9 +652,8 @@ const EditTab = ({
   onChanged: (entries: Entry[]) => void;
 }): ReactElement => {
   const s = useStyles();
-  const { saveContent, setTagType, deleteTag, confirm, notify, user, richText } = useTweakTags();
-
-  const isSuperuser = user?.role === ROLES.SUPERUSER;
+  const { saveContent, setTagType, deleteTag, confirm, notify, isSuperuser, richText } =
+    useTweakTags();
 
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(0);
@@ -649,7 +661,7 @@ const EditTab = ({
   const [draft, setDraft] = useState<Draft | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const { totalPages, currentPage, pageItems, matchCount } = paginate(entries, search, page);
+  const { totalPages, currentPage, pageItems, matchCount } = paginate(entries, search, page, (entry) => entry.tag);
 
   //Opens the inline editor for a tag, prefilled with its saved content.
   const openEditor = (entry: Entry): void => {
@@ -881,15 +893,522 @@ const EditTab = ({
   );
 };
 
+//The users tab. Only a superuser can reach this. The server enforces every rule
+//below on its own; the job here is to show them before somebody runs into one.
+const UsersTab = (): ReactElement => {
+  const s = useStyles();
+  const {
+    user,
+    listUsers,
+    createUser,
+    updateUserRole,
+    updateUserPassword,
+    deleteUser,
+    confirm,
+    notify,
+  } = useTweakTags();
+
+  //Users get their own state rather than sharing the tag shaped entries above.
+  const [users, setUsers] = useState<AuthUser[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [newEmail, setNewEmail] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [newRole, setNewRole] = useState<Role>(ROLES.EDITOR);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(0);
+  const [openUser, setOpenUser] = useState<string | null>(null);
+  const [resetPassword, setResetPassword] = useState('');
+
+  const { totalPages, currentPage, pageItems, matchCount } = paginate(
+    users,
+    search,
+    page,
+    (entry) => entry.email,
+  );
+
+  //Demoting the last superuser would lock everyone out of tag management, so the
+  //server refuses it. Counting them here lets the option be disabled instead.
+  const superuserCount = users.filter((entry) => entry.role === ROLES.SUPERUSER).length;
+
+  const loadUsers = async (): Promise<void> => {
+    setLoading(true);
+
+    try {
+      setUsers(await listUsers());
+    } catch {
+      notify('Could not load the users.', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadUsers();
+    //loadUsers reads current values, running it once on mount is enough.
+  }, []);
+
+  const closeReset = (): void => {
+    setOpenUser(null);
+    setResetPassword('');
+  };
+
+  //The server checks the email and the password too, but checking first means a
+  //typo shows up in place instead of coming back as a 400.
+  const handleCreate = async (): Promise<void> => {
+    setError(null);
+    const email = newEmail.trim();
+
+    if (!isValidEmail(email)) {
+      setError('Enter a valid email address.');
+
+      return;
+    }
+
+    if (newPassword.length < MIN_PASSWORD_LENGTH) {
+      setError(`The password must be at least ${MIN_PASSWORD_LENGTH} characters.`);
+
+      return;
+    }
+
+    setBusy(true);
+
+    try {
+      const created = await createUser(email, newPassword, newRole);
+      setUsers((current) => [...current, created]);
+      setNewEmail('');
+      setNewPassword('');
+      setNewRole(ROLES.EDITOR);
+      notify(`Added ${created.email}.`, 'success');
+    } catch (createError) {
+      //A duplicate address comes back as a conflict from the server, so the
+      //message it carries is the one worth showing.
+      const message = createError instanceof Error ? createError.message : 'Could not add the user';
+      setError(message);
+      notify(message, 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleRole = async (target: AuthUser, role: Role): Promise<void> => {
+    try {
+      const updated = await updateUserRole(target.id, role);
+      setUsers((current) => current.map((entry) => (entry.id === target.id ? updated : entry)));
+      notify(`${updated.email} is now ${role === ROLES.SUPERUSER ? 'a superuser' : 'an editor'}.`, 'success');
+    } catch (roleError) {
+      notify(roleError instanceof Error ? roleError.message : 'Could not change the role', 'error');
+    }
+  };
+
+  const handleSetPassword = async (target: AuthUser): Promise<void> => {
+    if (resetPassword.length < MIN_PASSWORD_LENGTH) {
+      notify(`The password must be at least ${MIN_PASSWORD_LENGTH} characters.`, 'error');
+
+      return;
+    }
+
+    setBusy(true);
+
+    try {
+      await updateUserPassword(target.id, resetPassword);
+      closeReset();
+      notify(`Set a new password for ${target.email}. They have been signed out.`, 'success');
+    } catch (passwordError) {
+      notify(
+        passwordError instanceof Error ? passwordError.message : 'Could not set the password',
+        'error',
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleDelete = async (target: AuthUser): Promise<void> => {
+    const ok = await confirm(`Delete ${target.email}? This cannot be undone.`, {
+      confirmLabel: 'Delete',
+      cancelLabel: 'Cancel',
+    });
+
+    if (!ok) {
+      return;
+    }
+
+    try {
+      await deleteUser(target.id);
+      setUsers((current) => current.filter((entry) => entry.id !== target.id));
+
+      if (openUser === target.id) {
+        closeReset();
+      }
+
+      notify(`Deleted ${target.email}.`, 'success');
+    } catch (deleteError) {
+      notify(
+        deleteError instanceof Error ? deleteError.message : 'Could not delete the user',
+        'error',
+      );
+    }
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+      <div style={s.card}>
+        <strong style={{ fontSize: '1.05rem' }}>Add a user</strong>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+          <label style={s.label}>Email</label>
+          <input
+            style={s.input}
+            type="email"
+            autoComplete="off"
+            placeholder="name@example.com"
+            value={newEmail}
+            onChange={(event) => setNewEmail(event.target.value)}
+          />
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+          <label style={s.label}>Starting password</label>
+          <input
+            style={s.input}
+            type="password"
+            autoComplete="new-password"
+            value={newPassword}
+            onChange={(event) => setNewPassword(event.target.value)}
+          />
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+          <label style={s.label}>Role</label>
+          <select
+            style={s.input}
+            value={newRole}
+            onChange={(event) => setNewRole(event.target.value as Role)}
+          >
+            <option value={ROLES.EDITOR}>Editor</option>
+            <option value={ROLES.SUPERUSER}>Superuser</option>
+          </select>
+        </div>
+
+        <button
+          style={{ ...s.button, alignSelf: 'flex-start' }}
+          type="button"
+          disabled={busy}
+          onClick={() => void handleCreate()}
+        >
+          {busy ? 'Adding...' : 'Add user'}
+        </button>
+
+        {error ? <span style={{ color: '#ff9a9a' }}>{error}</span> : null}
+
+        <span style={{ opacity: 0.6, fontSize: '12px' }}>
+          An editor can change the content of tags that already exist. A superuser can also create
+          and delete tags, and manage users. Passwords need at least {MIN_PASSWORD_LENGTH}{' '}
+          characters.
+        </span>
+      </div>
+
+      <div style={s.card}>
+        <strong style={{ fontSize: '1.05rem' }}>Users ({users.length})</strong>
+
+        <ListControls
+          search={search}
+          onSearch={(value) => {
+            setSearch(value);
+            setPage(0);
+          }}
+          page={currentPage}
+          totalPages={totalPages}
+          onPage={setPage}
+          placeholder="Search users..."
+        />
+
+        {loading ? (
+          <span style={{ opacity: 0.6 }}>Loading...</span>
+        ) : users.length === 0 ? (
+          <span style={{ opacity: 0.6 }}>Could not load the users.</span>
+        ) : matchCount === 0 ? (
+          <span style={{ opacity: 0.6 }}>No users match "{search}".</span>
+        ) : (
+          <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+            {pageItems.map((entry) => {
+              const isSelf = entry.id === user?.id;
+              const isOpen = openUser === entry.id;
+              const targetIsSuperuser = entry.role === ROLES.SUPERUSER;
+
+              return (
+                <li key={entry.id} style={{ ...s.listRow, flexDirection: 'column', alignItems: 'stretch' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+                    <span style={{ fontFamily: 'monospace', fontWeight: 600, flex: 1, minWidth: '10rem' }}>
+                      {entry.email}
+                    </span>
+
+                    {isSelf ? <span style={s.badge}>you</span> : null}
+
+                    {/*Changing your own role is a 403, so the control is dead on
+                       your own row rather than offering a move that will fail.*/}
+                    <select
+                      style={{ ...s.input, width: 'auto' }}
+                      value={entry.role}
+                      disabled={isSelf}
+                      title={
+                        isSelf
+                          ? 'You cannot change your own role. Promote somebody else first.'
+                          : undefined
+                      }
+                      onChange={(event) => void handleRole(entry, event.target.value as Role)}
+                    >
+                      <option value={ROLES.SUPERUSER}>superuser</option>
+                      <option
+                        value={ROLES.EDITOR}
+                        disabled={targetIsSuperuser && superuserCount <= 1}
+                      >
+                        editor
+                      </option>
+                    </select>
+
+                    <button
+                      type="button"
+                      style={s.subtleButton}
+                      onClick={() => (isOpen ? closeReset() : setOpenUser(entry.id))}
+                    >
+                      {isOpen ? 'Cancel' : 'Set password'}
+                    </button>
+
+                    {/*Deleting yourself is a 403, so that button is not offered at
+                       all. Deleting a superuser is also a 403, so theirs is shown
+                       but dead, with the way out in its tooltip.*/}
+                    {isSelf ? null : (
+                      <button
+                        type="button"
+                        style={{
+                          ...s.dangerButton,
+                          ...(targetIsSuperuser ? { opacity: 0.5, cursor: 'not-allowed' } : {}),
+                        }}
+                        disabled={targetIsSuperuser}
+                        title={
+                          targetIsSuperuser
+                            ? 'A superuser cannot be deleted. Change their role to editor first.'
+                            : undefined
+                        }
+                        onClick={() => void handleDelete(entry)}
+                      >
+                        Delete
+                      </button>
+                    )}
+                  </div>
+
+                  {isOpen ? (
+                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.75rem' }}>
+                      <input
+                        style={{ ...s.input, flex: 1, minWidth: '10rem' }}
+                        type="password"
+                        autoComplete="new-password"
+                        placeholder={`new password, at least ${MIN_PASSWORD_LENGTH} characters`}
+                        value={resetPassword}
+                        onChange={(event) => setResetPassword(event.target.value)}
+                      />
+                      <button
+                        type="button"
+                        style={s.button}
+                        disabled={busy}
+                        onClick={() => void handleSetPassword(entry)}
+                      >
+                        {busy ? 'Saving...' : 'Save password'}
+                      </button>
+                    </div>
+                  ) : null}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+
+        <span style={{ opacity: 0.6, fontSize: '12px' }}>
+          Changing a role or setting a password signs that user out of every device. TweakTags sends
+          no email, so tell them yourself.
+        </span>
+      </div>
+    </div>
+  );
+};
+
+//The account tab. This one sits outside the superuser guard, because every
+//signed in user manages their own email and password here.
+const AccountTab = (): ReactElement => {
+  const s = useStyles();
+  const { user, updateMyEmail, updateMyPassword, notify } = useTweakTags();
+
+  const [emailPassword, setEmailPassword] = useState('');
+  const [nextEmail, setNextEmail] = useState(user?.email ?? '');
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const [emailBusy, setEmailBusy] = useState(false);
+
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [nextPassword, setNextPassword] = useState('');
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [passwordBusy, setPasswordBusy] = useState(false);
+
+  const handleEmail = async (): Promise<void> => {
+    setEmailError(null);
+    const email = nextEmail.trim();
+
+    if (!isValidEmail(email)) {
+      setEmailError('Enter a valid email address.');
+
+      return;
+    }
+
+    if (emailPassword === '') {
+      setEmailError('Enter your current password to confirm this change.');
+
+      return;
+    }
+
+    setEmailBusy(true);
+
+    try {
+      //The provider folds the updated user back into its own state, so the email
+      //in the topbar catches up on its own.
+      const updated = await updateMyEmail(emailPassword, email);
+      setEmailPassword('');
+      setNextEmail(updated.email);
+      notify(`Your email is now ${updated.email}.`, 'success');
+    } catch (changeError) {
+      const message =
+        changeError instanceof Error ? changeError.message : 'Could not change your email';
+      setEmailError(message);
+      notify(message, 'error');
+    } finally {
+      setEmailBusy(false);
+    }
+  };
+
+  const handlePassword = async (): Promise<void> => {
+    setPasswordError(null);
+
+    if (currentPassword === '') {
+      setPasswordError('Enter your current password to confirm this change.');
+
+      return;
+    }
+
+    if (nextPassword.length < MIN_PASSWORD_LENGTH) {
+      setPasswordError(`The new password must be at least ${MIN_PASSWORD_LENGTH} characters.`);
+
+      return;
+    }
+
+    setPasswordBusy(true);
+
+    try {
+      await updateMyPassword(currentPassword, nextPassword);
+      setCurrentPassword('');
+      setNextPassword('');
+      notify('Your password has been changed.', 'success');
+    } catch (changeError) {
+      const message =
+        changeError instanceof Error ? changeError.message : 'Could not change your password';
+      setPasswordError(message);
+      notify(message, 'error');
+    } finally {
+      setPasswordBusy(false);
+    }
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+      <div style={s.card}>
+        <strong style={{ fontSize: '1.05rem' }}>Change your email</strong>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+          <label style={s.label}>New email</label>
+          <input
+            style={s.input}
+            type="email"
+            autoComplete="username"
+            value={nextEmail}
+            onChange={(event) => setNextEmail(event.target.value)}
+          />
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+          <label style={s.label}>Current password</label>
+          <input
+            style={s.input}
+            type="password"
+            autoComplete="current-password"
+            value={emailPassword}
+            onChange={(event) => setEmailPassword(event.target.value)}
+          />
+        </div>
+
+        <button
+          style={{ ...s.button, alignSelf: 'flex-start' }}
+          type="button"
+          disabled={emailBusy}
+          onClick={() => void handleEmail()}
+        >
+          {emailBusy ? 'Saving...' : 'Change email'}
+        </button>
+
+        {emailError ? <span style={{ color: '#ff9a9a' }}>{emailError}</span> : null}
+      </div>
+
+      <div style={s.card}>
+        <strong style={{ fontSize: '1.05rem' }}>Change your password</strong>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+          <label style={s.label}>Current password</label>
+          <input
+            style={s.input}
+            type="password"
+            autoComplete="current-password"
+            value={currentPassword}
+            onChange={(event) => setCurrentPassword(event.target.value)}
+          />
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+          <label style={s.label}>New password</label>
+          <input
+            style={s.input}
+            type="password"
+            autoComplete="new-password"
+            value={nextPassword}
+            onChange={(event) => setNextPassword(event.target.value)}
+          />
+        </div>
+
+        <button
+          style={{ ...s.button, alignSelf: 'flex-start' }}
+          type="button"
+          disabled={passwordBusy}
+          onClick={() => void handlePassword()}
+        >
+          {passwordBusy ? 'Saving...' : 'Change password'}
+        </button>
+
+        {passwordError ? <span style={{ color: '#ff9a9a' }}>{passwordError}</span> : null}
+
+        <span style={{ opacity: 0.6, fontSize: '12px' }}>
+          Your other devices are signed out, but this one stays signed in. A new password needs at
+          least {MIN_PASSWORD_LENGTH} characters.
+        </span>
+      </div>
+    </div>
+  );
+};
+
 //The dashboard shown once a user is signed in. It loads the tags once, then
 //lets the user move between viewing, creating, and editing tags.
 const AdminDashboard = (): ReactElement => {
   const s = useStyles();
-  const { user, logout, listTags, loadContent, notify, whiteLabel } = useTweakTags();
+  const { user, logout, listTags, loadContent, notify, whiteLabel, isSuperuser } = useTweakTags();
 
-  const isSuperuser = user?.role === ROLES.SUPERUSER;
-
-  const [tab, setTab] = useState<'view' | 'create' | 'edit'>('view');
+  const [tab, setTab] = useState<'view' | 'create' | 'edit' | 'users' | 'account'>('view');
   const [loading, setLoading] = useState(true);
   const [entries, setEntries] = useState<Entry[]>([]);
 
@@ -923,8 +1442,9 @@ const AdminDashboard = (): ReactElement => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  //A non superuser cannot create tags, so hide that tab for them.
-  const activeTab = tab === 'create' && !isSuperuser ? 'view' : tab;
+  //A non superuser cannot create tags or manage users, so those tabs are hidden
+  //for them. Account is deliberately not in here: it is for everyone.
+  const activeTab = (tab === 'create' || tab === 'users') && !isSuperuser ? 'view' : tab;
 
   return (
     <div style={s.page}>
@@ -946,6 +1466,10 @@ const AdminDashboard = (): ReactElement => {
             <NavTab label="Create tag" active={activeTab === 'create'} onClick={() => setTab('create')} />
           ) : null}
           <NavTab label="Edit tags" active={activeTab === 'edit'} onClick={() => setTab('edit')} />
+          {isSuperuser ? (
+            <NavTab label="Users" active={activeTab === 'users'} onClick={() => setTab('users')} />
+          ) : null}
+          <NavTab label="Account" active={activeTab === 'account'} onClick={() => setTab('account')} />
 
           <button
             style={{ ...s.subtleButton, marginLeft: 'auto' }}
@@ -956,7 +1480,13 @@ const AdminDashboard = (): ReactElement => {
           </button>
         </div>
 
-        {loading ? (
+        {/*Users and account come before the spinner because neither one needs
+           the tags, and waiting on a load they do not use would be pointless.*/}
+        {activeTab === 'users' ? (
+          <UsersTab />
+        ) : activeTab === 'account' ? (
+          <AccountTab />
+        ) : loading ? (
           <div style={{ display: 'flex', justifyContent: 'center', padding: '4rem 0' }}>
             <Spinner size={40} />
           </div>

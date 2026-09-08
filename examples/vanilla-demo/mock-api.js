@@ -9,7 +9,35 @@
 //vanilla build has something real to talk to, with no server to run. State lives
 //in memory, so a reload signs you out and resets the tags.
 (function () {
-  var users = [{ email: 'admin@example.com', password: 'password', role: 'superuser' }];
+  var users = [
+    { id: '1', email: 'admin@example.com', password: 'password', role: 'superuser' },
+    { id: '2', email: 'editor@example.com', password: 'password', role: 'editor' },
+  ];
+
+  var nextUserId = 3;
+
+  function publicUser(user) {
+    return { id: user.id, email: user.email, role: user.role };
+  }
+
+  function byId(id) {
+    return users.filter(function (user) {
+      return user.id === id;
+    })[0];
+  }
+
+  function byEmail(email) {
+    return users.filter(function (user) {
+      return user.email === email;
+    })[0];
+  }
+
+  //The signed in user read back from the list rather than from the session, so a
+  //role change or an email change takes effect straight away, the same way the
+  //real handler reads the row instead of trusting the token.
+  function currentUser() {
+    return session ? byId(session.id) : null;
+  }
 
   var content = {
     'hero-title': { tag: 'hero-title', type: 'plain', body: 'Welcome to TweakTags', mediaUrl: null, updatedAt: null, updatedBy: null },
@@ -43,21 +71,22 @@
 
     switch (action) {
       case 'login': {
-        var match = users.filter(function (u) {
-          return u.email === p.email && u.password === p.password;
-        })[0];
+        var match = byEmail(p.email);
 
-        if (!match) {
+        if (!match || match.password !== p.password) {
           return res(401, { message: 'Wrong email or password.' });
         }
 
-        session = { id: '1', email: match.email, role: match.role };
+        session = publicUser(match);
 
         return res(200, { accessToken: 'demo', refreshToken: 'demo', user: session });
       }
 
-      case 'me':
-        return session ? res(200, { user: session }) : res(401, { message: 'Not signed in' });
+      case 'me': {
+        var me = currentUser();
+
+        return me ? res(200, { user: publicUser(me) }) : res(401, { message: 'Not signed in' });
+      }
 
       case 'logout':
         session = null;
@@ -137,10 +166,176 @@
         return res(200, { ok: true, tag: p.tag });
       }
 
+      case 'listUsers': {
+        var lister = currentUser();
+
+        if (!lister) {
+          return res(401, { message: 'You must be signed in to do this' });
+        }
+
+        if (lister.role !== 'superuser') {
+          return res(403, { message: 'Only a superuser can manage users' });
+        }
+
+        return res(200, {
+          users: users
+            .map(publicUser)
+            .sort(function (a, b) {
+              return a.email.localeCompare(b.email);
+            }),
+        });
+      }
+
+      case 'createUser': {
+        var creator = currentUser();
+
+        if (!creator) {
+          return res(401, { message: 'You must be signed in to do this' });
+        }
+
+        if (creator.role !== 'superuser') {
+          return res(403, { message: 'Only a superuser can manage users' });
+        }
+
+        if (byEmail(p.email)) {
+          return res(409, { message: 'A user with the email "' + p.email + '" already exists' });
+        }
+
+        var made = { id: String(nextUserId++), email: p.email, password: p.password, role: p.role };
+        users.push(made);
+
+        return res(201, { user: publicUser(made) });
+      }
+
+      case 'updateUserRole': {
+        var promoter = currentUser();
+
+        if (!promoter) {
+          return res(401, { message: 'You must be signed in to do this' });
+        }
+
+        if (promoter.role !== 'superuser') {
+          return res(403, { message: 'Only a superuser can manage users' });
+        }
+
+        if (p.userId === promoter.id) {
+          return res(403, { message: 'You cannot change your own role' });
+        }
+
+        var promoted = byId(p.userId);
+
+        if (!promoted) {
+          return res(404, { message: 'That user could not be found' });
+        }
+
+        promoted.role = p.role;
+
+        return res(200, { user: publicUser(promoted) });
+      }
+
+      case 'updateUserPassword': {
+        var resetter = currentUser();
+
+        if (!resetter) {
+          return res(401, { message: 'You must be signed in to do this' });
+        }
+
+        if (resetter.role !== 'superuser') {
+          return res(403, { message: 'Only a superuser can manage users' });
+        }
+
+        var reset = byId(p.userId);
+
+        if (!reset) {
+          return res(404, { message: 'That user could not be found' });
+        }
+
+        reset.password = p.password;
+
+        return res(200, { ok: true });
+      }
+
+      case 'deleteUser': {
+        var remover = currentUser();
+
+        if (!remover) {
+          return res(401, { message: 'You must be signed in to do this' });
+        }
+
+        if (remover.role !== 'superuser') {
+          return res(403, { message: 'Only a superuser can manage users' });
+        }
+
+        if (p.userId === remover.id) {
+          return res(403, { message: 'You cannot delete your own account' });
+        }
+
+        var doomed = byId(p.userId);
+
+        if (!doomed) {
+          return res(404, { message: 'That user could not be found' });
+        }
+
+        //Judged on the role held right now, so removing an administrator is two
+        //decisions: change them to an editor, then delete them.
+        if (doomed.role === 'superuser') {
+          return res(403, {
+            message: 'A superuser cannot be deleted. Change their role to editor first.',
+          });
+        }
+
+        users = users.filter(function (user) {
+          return user.id !== doomed.id;
+        });
+
+        return res(200, { ok: true, userId: doomed.id });
+      }
+
+      case 'updateMyEmail': {
+        var renamer = currentUser();
+
+        if (!renamer) {
+          return res(401, { message: 'You must be signed in to do this' });
+        }
+
+        //403 rather than 401, matching the handler, so the api client does not
+        //read a wrong password as an expired session and replay the request.
+        if (renamer.password !== p.currentPassword) {
+          return res(403, { message: 'Your current password is not correct' });
+        }
+
+        var clash = byEmail(p.email);
+
+        if (clash && clash.id !== renamer.id) {
+          return res(409, { message: 'A user with the email "' + p.email + '" already exists' });
+        }
+
+        renamer.email = p.email;
+        session = publicUser(renamer);
+
+        return res(200, { user: session });
+      }
+
+      case 'updateMyPassword': {
+        var changer = currentUser();
+
+        if (!changer) {
+          return res(401, { message: 'You must be signed in to do this' });
+        }
+
+        if (changer.password !== p.currentPassword) {
+          return res(403, { message: 'Your current password is not correct' });
+        }
+
+        changer.password = p.password;
+
+        return res(200, { ok: true });
+      }
+
       default:
         return res(400, { message: 'Unknown action ' + action });
     }
   };
 
-  console.log('[TweakTags demo] Mock backend ready. Sign in with admin@example.com / password');
+  console.log('[TweakTags demo] Mock backend ready. Sign in as admin@example.com or editor@example.com, password "password".');
 })();

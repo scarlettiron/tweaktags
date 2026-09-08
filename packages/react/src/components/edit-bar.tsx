@@ -8,7 +8,16 @@
 import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties, PointerEvent as ReactPointerEvent, ReactElement } from 'react';
 
-import { ROLES, isValidTag, type ContentRecord, type TagType } from '@tweaktags/core';
+import {
+  MIN_PASSWORD_LENGTH,
+  ROLES,
+  isValidEmail,
+  isValidTag,
+  type AuthUser,
+  type ContentRecord,
+  type Role,
+  type TagType,
+} from '@tweaktags/core';
 
 import { useTweakTags } from '../hooks/use-tweaktags.js';
 import { UploadButton } from './upload-button.js';
@@ -78,6 +87,19 @@ const emailStyle: CSSProperties = {
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
+};
+
+//The bar is already crowded, so the email doubles as the way into the account
+//panel rather than earning a third button of its own. It still has to read as
+//something you can click, hence the underline.
+const emailButtonStyle: CSSProperties = {
+  ...emailStyle,
+  font: baseFont,
+  background: 'none',
+  border: 'none',
+  cursor: 'pointer',
+  textDecoration: 'underline',
+  textUnderlineOffset: '0.2rem',
 };
 
 const buttonStyle: CSSProperties = {
@@ -560,6 +582,503 @@ const TagManager = ({ onClose }: { onClose: () => void }): ReactElement => {
   );
 };
 
+//The compact buttons for the user rows. At 21rem a full size button beside a
+//role select would push the row into three lines.
+const rowButtonStyle: CSSProperties = { ...buttonStyle, padding: '0.2rem 0.5rem' };
+const rowSubtleStyle: CSSProperties = { ...subtleButtonStyle, padding: '0.2rem 0.5rem' };
+const rowSelectStyle: CSSProperties = { ...inputStyle, padding: '0.2rem 0.3rem', flex: 1 };
+
+//The panel where a superuser adds users, changes their roles, resets their
+//passwords, and removes them. The server enforces every rule below on its own;
+//the job here is to show them before somebody runs into one.
+const UserManager = ({ onClose }: { onClose: () => void }): ReactElement => {
+  const { user, listUsers, createUser, updateUserRole, updateUserPassword, deleteUser, notify, confirm } =
+    useTweakTags();
+
+  const [users, setUsers] = useState<AuthUser[] | null>(null);
+  const [newEmail, setNewEmail] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [newRole, setNewRole] = useState<Role>(ROLES.EDITOR);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [search, setSearch] = useState('');
+  const [openUser, setOpenUser] = useState<string | null>(null);
+  const [resetPassword, setResetPassword] = useState('');
+
+  const query = search.trim().toLowerCase();
+  const filtered = (users ?? []).filter((entry) => entry.email.toLowerCase().includes(query));
+
+  //Demoting the last superuser would lock everyone out of tag management, so the
+  //server refuses it. Counting them here lets the option be disabled instead.
+  const superuserCount = (users ?? []).filter((entry) => entry.role === ROLES.SUPERUSER).length;
+
+  useEffect(() => {
+    let active = true;
+
+    listUsers()
+      .then((result) => {
+        if (active) {
+          setUsers(result);
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setUsers([]);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+    //listUsers is stable and the list only needs fetching once on open.
+  }, []);
+
+  const closeReset = (): void => {
+    setOpenUser(null);
+    setResetPassword('');
+  };
+
+  //The server checks the email and the password too, but checking first means a
+  //typo shows up in place instead of coming back as a 400.
+  const handleCreate = async (): Promise<void> => {
+    setError(null);
+    const email = newEmail.trim();
+
+    if (!isValidEmail(email)) {
+      setError('Enter a valid email address.');
+
+      return;
+    }
+
+    if (newPassword.length < MIN_PASSWORD_LENGTH) {
+      setError(`The password must be at least ${MIN_PASSWORD_LENGTH} characters.`);
+
+      return;
+    }
+
+    setBusy(true);
+
+    try {
+      const created = await createUser(email, newPassword, newRole);
+      setUsers((current) => [...(current ?? []), created]);
+      setNewEmail('');
+      setNewPassword('');
+      setNewRole(ROLES.EDITOR);
+      notify(`Added ${created.email}.`, 'success');
+    } catch (createError) {
+      //A duplicate address comes back as a conflict from the server, so the
+      //message it carries is the one worth showing.
+      const message = createError instanceof Error ? createError.message : 'Could not add the user';
+      setError(message);
+      notify(message, 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleRole = async (target: AuthUser, role: Role): Promise<void> => {
+    try {
+      const updated = await updateUserRole(target.id, role);
+      setUsers((current) =>
+        current ? current.map((entry) => (entry.id === target.id ? updated : entry)) : current,
+      );
+      notify(`${updated.email} is now ${role === ROLES.SUPERUSER ? 'a superuser' : 'an editor'}.`, 'success');
+    } catch (roleError) {
+      notify(roleError instanceof Error ? roleError.message : 'Could not change the role', 'error');
+    }
+  };
+
+  const handleSetPassword = async (target: AuthUser): Promise<void> => {
+    if (resetPassword.length < MIN_PASSWORD_LENGTH) {
+      notify(`The password must be at least ${MIN_PASSWORD_LENGTH} characters.`, 'error');
+
+      return;
+    }
+
+    setBusy(true);
+
+    try {
+      await updateUserPassword(target.id, resetPassword);
+      closeReset();
+      notify(`Set a new password for ${target.email}. They have been signed out.`, 'success');
+    } catch (passwordError) {
+      notify(
+        passwordError instanceof Error ? passwordError.message : 'Could not set the password',
+        'error',
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleDelete = async (target: AuthUser): Promise<void> => {
+    const ok = await confirm(`Delete ${target.email}? This cannot be undone.`, {
+      confirmLabel: 'Delete',
+      cancelLabel: 'Cancel',
+    });
+
+    if (!ok) {
+      return;
+    }
+
+    try {
+      await deleteUser(target.id);
+      setUsers((current) => (current ? current.filter((entry) => entry.id !== target.id) : current));
+
+      if (openUser === target.id) {
+        closeReset();
+      }
+
+      notify(`Deleted ${target.email}.`, 'success');
+    } catch (deleteError) {
+      notify(
+        deleteError instanceof Error ? deleteError.message : 'Could not delete the user',
+        'error',
+      );
+    }
+  };
+
+  return (
+    <div style={panelStyle}>
+      <style>{scrollbarCss}</style>
+
+      <PanelHeader title="Users" onClose={onClose} />
+
+      <strong>Add a user</strong>
+
+      <input
+        style={inputStyle}
+        type="email"
+        autoComplete="off"
+        placeholder="name@example.com"
+        value={newEmail}
+        onChange={(event) => setNewEmail(event.target.value)}
+      />
+
+      <input
+        style={inputStyle}
+        type="password"
+        autoComplete="new-password"
+        placeholder={`password, at least ${MIN_PASSWORD_LENGTH} characters`}
+        value={newPassword}
+        onChange={(event) => setNewPassword(event.target.value)}
+      />
+
+      <select
+        style={inputStyle}
+        value={newRole}
+        onChange={(event) => setNewRole(event.target.value as Role)}
+      >
+        <option value={ROLES.EDITOR}>Editor</option>
+        <option value={ROLES.SUPERUSER}>Superuser</option>
+      </select>
+
+      <button style={buttonStyle} type="button" disabled={busy} onClick={() => void handleCreate()}>
+        {busy ? 'Adding...' : 'Add user'}
+      </button>
+
+      {error ? <span style={{ color: '#ff9a9a' }}>{error}</span> : null}
+
+      <hr style={{ width: '100%', border: 'none', borderTop: `1px solid ${COLORS.border}`, margin: 0 }} />
+
+      <strong>Existing users</strong>
+
+      <input
+        style={inputStyle}
+        type="search"
+        placeholder="Search users..."
+        value={search}
+        onChange={(event) => setSearch(event.target.value)}
+      />
+
+      {users === null ? (
+        <span style={{ opacity: 0.6 }}>Loading...</span>
+      ) : users.length === 0 ? (
+        <span style={{ opacity: 0.6 }}>Could not load the users.</span>
+      ) : filtered.length === 0 ? (
+        <span style={{ opacity: 0.6 }}>No users match "{search}".</span>
+      ) : (
+        <ul
+          className={SCROLLBAR_CLASS}
+          style={{
+            margin: 0,
+            padding: '0 0.4rem 0 0',
+            listStyle: 'none',
+            maxHeight: '16rem',
+            overflowY: 'auto',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '0.6rem',
+            scrollbarWidth: 'thin',
+            scrollbarColor: `${COLORS.primary} ${COLORS.surfaceRaised}`,
+          }}
+        >
+          {filtered.map((entry) => {
+            const isSelf = entry.id === user?.id;
+            const isOpen = openUser === entry.id;
+            const targetIsSuperuser = entry.role === ROLES.SUPERUSER;
+
+            return (
+              <li key={entry.id} style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                {/*The address gets its own line and the tooltip carries it in
+                   full, since anything realistic truncates at this width.*/}
+                <span
+                  title={entry.email}
+                  style={{
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {entry.email}
+                  {isSelf ? <span style={{ color: COLORS.muted }}> (you)</span> : null}
+                </span>
+
+                {isOpen ? (
+                  //Setting a password swaps the controls line out for one input,
+                  //rather than stacking a third row of them underneath.
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <input
+                      style={{ ...inputStyle, padding: '0.2rem 0.3rem', flex: 1, minWidth: 0 }}
+                      type="password"
+                      autoComplete="new-password"
+                      placeholder="new password"
+                      value={resetPassword}
+                      onChange={(event) => setResetPassword(event.target.value)}
+                    />
+                    <button
+                      type="button"
+                      style={rowButtonStyle}
+                      disabled={busy}
+                      onClick={() => void handleSetPassword(entry)}
+                    >
+                      Save
+                    </button>
+                    <button type="button" style={rowSubtleStyle} onClick={closeReset}>
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                    {/*Changing your own role is a 403, so the control is dead on
+                       your own row rather than offering a move that will fail.*/}
+                    <select
+                      style={rowSelectStyle}
+                      value={entry.role}
+                      disabled={isSelf}
+                      title={
+                        isSelf
+                          ? 'You cannot change your own role. Promote somebody else first.'
+                          : undefined
+                      }
+                      onChange={(event) => void handleRole(entry, event.target.value as Role)}
+                    >
+                      <option value={ROLES.SUPERUSER}>superuser</option>
+                      <option value={ROLES.EDITOR} disabled={targetIsSuperuser && superuserCount <= 1}>
+                        editor
+                      </option>
+                    </select>
+
+                    <button type="button" style={rowSubtleStyle} onClick={() => setOpenUser(entry.id)}>
+                      Set password
+                    </button>
+
+                    {/*Deleting yourself is a 403, so that button is not offered at
+                       all. Deleting a superuser is also a 403, so theirs is shown
+                       but dead, with the way out in its tooltip.*/}
+                    {isSelf ? null : (
+                      <button
+                        type="button"
+                        style={{
+                          ...rowButtonStyle,
+                          background: COLORS.danger,
+                          ...(targetIsSuperuser ? { opacity: 0.5, cursor: 'not-allowed' } : {}),
+                        }}
+                        disabled={targetIsSuperuser}
+                        title={
+                          targetIsSuperuser
+                            ? 'A superuser cannot be deleted. Change their role to editor first.'
+                            : undefined
+                        }
+                        onClick={() => void handleDelete(entry)}
+                      >
+                        Delete
+                      </button>
+                    )}
+                  </div>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+
+      <span style={{ opacity: 0.6, fontSize: '12px' }}>
+        Changing a role or setting a password signs that user out everywhere. TweakTags sends no
+        email, so tell them yourself.
+      </span>
+    </div>
+  );
+};
+
+//The panel where the signed in user changes their own email and password. This
+//one is for everybody, editors included, so it sits outside the superuser guard.
+const AccountPanel = ({ onClose }: { onClose: () => void }): ReactElement => {
+  const { user, updateMyEmail, updateMyPassword, notify } = useTweakTags();
+
+  const [emailPassword, setEmailPassword] = useState('');
+  const [nextEmail, setNextEmail] = useState(user?.email ?? '');
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const [emailBusy, setEmailBusy] = useState(false);
+
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [nextPassword, setNextPassword] = useState('');
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [passwordBusy, setPasswordBusy] = useState(false);
+
+  const handleEmail = async (): Promise<void> => {
+    setEmailError(null);
+    const email = nextEmail.trim();
+
+    if (!isValidEmail(email)) {
+      setEmailError('Enter a valid email address.');
+
+      return;
+    }
+
+    if (emailPassword === '') {
+      setEmailError('Enter your current password to confirm this change.');
+
+      return;
+    }
+
+    setEmailBusy(true);
+
+    try {
+      //The provider folds the updated user back into its own state, so the email
+      //on the bar catches up on its own.
+      const updated = await updateMyEmail(emailPassword, email);
+      setEmailPassword('');
+      setNextEmail(updated.email);
+      notify(`Your email is now ${updated.email}.`, 'success');
+    } catch (changeError) {
+      const message =
+        changeError instanceof Error ? changeError.message : 'Could not change your email';
+      setEmailError(message);
+      notify(message, 'error');
+    } finally {
+      setEmailBusy(false);
+    }
+  };
+
+  const handlePassword = async (): Promise<void> => {
+    setPasswordError(null);
+
+    if (currentPassword === '') {
+      setPasswordError('Enter your current password to confirm this change.');
+
+      return;
+    }
+
+    if (nextPassword.length < MIN_PASSWORD_LENGTH) {
+      setPasswordError(`The new password must be at least ${MIN_PASSWORD_LENGTH} characters.`);
+
+      return;
+    }
+
+    setPasswordBusy(true);
+
+    try {
+      await updateMyPassword(currentPassword, nextPassword);
+      setCurrentPassword('');
+      setNextPassword('');
+      notify('Your password has been changed.', 'success');
+    } catch (changeError) {
+      const message =
+        changeError instanceof Error ? changeError.message : 'Could not change your password';
+      setPasswordError(message);
+      notify(message, 'error');
+    } finally {
+      setPasswordBusy(false);
+    }
+  };
+
+  return (
+    <div style={panelStyle}>
+      <PanelHeader title="Your account" onClose={onClose} />
+
+      <strong>Change your email</strong>
+
+      <input
+        style={inputStyle}
+        type="email"
+        autoComplete="username"
+        placeholder="new email"
+        value={nextEmail}
+        onChange={(event) => setNextEmail(event.target.value)}
+      />
+
+      <input
+        style={inputStyle}
+        type="password"
+        autoComplete="current-password"
+        placeholder="current password"
+        value={emailPassword}
+        onChange={(event) => setEmailPassword(event.target.value)}
+      />
+
+      <button
+        style={buttonStyle}
+        type="button"
+        disabled={emailBusy}
+        onClick={() => void handleEmail()}
+      >
+        {emailBusy ? 'Saving...' : 'Change email'}
+      </button>
+
+      {emailError ? <span style={{ color: '#ff9a9a' }}>{emailError}</span> : null}
+
+      <hr style={{ width: '100%', border: 'none', borderTop: `1px solid ${COLORS.border}`, margin: 0 }} />
+
+      <strong>Change your password</strong>
+
+      <input
+        style={inputStyle}
+        type="password"
+        autoComplete="current-password"
+        placeholder="current password"
+        value={currentPassword}
+        onChange={(event) => setCurrentPassword(event.target.value)}
+      />
+
+      <input
+        style={inputStyle}
+        type="password"
+        autoComplete="new-password"
+        placeholder={`new password, at least ${MIN_PASSWORD_LENGTH} characters`}
+        value={nextPassword}
+        onChange={(event) => setNextPassword(event.target.value)}
+      />
+
+      <button
+        style={buttonStyle}
+        type="button"
+        disabled={passwordBusy}
+        onClick={() => void handlePassword()}
+      >
+        {passwordBusy ? 'Saving...' : 'Change password'}
+      </button>
+
+      {passwordError ? <span style={{ color: '#ff9a9a' }}>{passwordError}</span> : null}
+
+      <span style={{ opacity: 0.6, fontSize: '12px' }}>
+        Both changes need your current password. A new password signs out your other devices but
+        keeps this one signed in.
+      </span>
+    </div>
+  );
+};
+
 //One help item with a small title and a line of guidance.
 const HelpItem = ({ title, children }: { title: string; children: string }): ReactElement => (
   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
@@ -607,6 +1126,20 @@ const HelpPanel = ({
         are asked to confirm before a delete.
       </HelpItem>
     ) : null}
+
+    {isSuperuser ? (
+      <HelpItem title="Add or remove users">
+        Open the Users panel with the Users button. You can add an editor or a superuser, change
+        somebody's role, set a new password for them, or remove them.
+      </HelpItem>
+    ) : null}
+
+    {/*The account panel opens from the email rather than a button of its own,
+       which is not obvious, so it gets a line here.*/}
+    <HelpItem title="Your own account">
+      Click your email address on the bar to change your own email or password. Both ask for your
+      current password first.
+    </HelpItem>
   </div>
 );
 
@@ -618,6 +1151,7 @@ export const TweakTagsEditBar = (): ReactElement => {
     isEditing,
     editInView,
     canEdit,
+    isSuperuser,
     setEditing,
     login,
     logout,
@@ -630,15 +1164,13 @@ export const TweakTagsEditBar = (): ReactElement => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [openPanel, setOpenPanel] = useState<'tags' | 'help' | null>(null);
+  const [openPanel, setOpenPanel] = useState<'tags' | 'help' | 'users' | 'account' | null>(null);
   const [position, setPosition] = useState<{ left: number; top: number } | null>(null);
   const [isNarrow, setIsNarrow] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
   const barRef = useRef<HTMLDivElement | null>(null);
   const dragOffset = useRef<{ x: number; y: number } | null>(null);
-
-  const isSuperuser = user?.role === ROLES.SUPERUSER;
 
   //Track whether the screen is narrow enough to use the mobile menu.
   useEffect(() => {
@@ -655,7 +1187,7 @@ export const TweakTagsEditBar = (): ReactElement => {
     return () => query.removeEventListener('change', update);
   }, []);
 
-  const togglePanel = (panel: 'tags' | 'help'): void => {
+  const togglePanel = (panel: 'tags' | 'help' | 'users' | 'account'): void => {
     setOpenPanel((current) => (current === panel ? null : panel));
   };
 
@@ -785,8 +1317,12 @@ export const TweakTagsEditBar = (): ReactElement => {
   const panels = (
     <>
       {openPanel === 'tags' && isSuperuser ? <TagManager onClose={() => setOpenPanel(null)} /> : null}
+      {openPanel === 'users' && isSuperuser ? (
+        <UserManager onClose={() => setOpenPanel(null)} />
+      ) : null}
+      {openPanel === 'account' ? <AccountPanel onClose={() => setOpenPanel(null)} /> : null}
       {openPanel === 'help' ? (
-        <HelpPanel onClose={() => setOpenPanel(null)} isSuperuser={Boolean(isSuperuser)} />
+        <HelpPanel onClose={() => setOpenPanel(null)} isSuperuser={isSuperuser} />
       ) : null}
     </>
   );
@@ -855,7 +1391,16 @@ export const TweakTagsEditBar = (): ReactElement => {
         {panels}
         <div style={menuStyle}>
           <div style={headerStyle}>
-            <span style={{ ...emailStyle, maxWidth: 'none' }}>{user.email}</span>
+            {/*The email opens the account panel here too, so the way in is the
+               same whichever layout you are looking at.*/}
+            <button
+              style={{ ...emailButtonStyle, maxWidth: 'none' }}
+              type="button"
+              title={`${user.email} - change your email or password`}
+              onClick={() => togglePanel('account')}
+            >
+              {user.email}
+            </button>
             <button
               style={closeButtonStyle}
               type="button"
@@ -873,6 +1418,12 @@ export const TweakTagsEditBar = (): ReactElement => {
           {isSuperuser ? (
             <button style={menuSubtleStyle} type="button" onClick={() => togglePanel('tags')}>
               Tags
+            </button>
+          ) : null}
+
+          {isSuperuser ? (
+            <button style={menuSubtleStyle} type="button" onClick={() => togglePanel('users')}>
+              Users
             </button>
           ) : null}
 
@@ -894,7 +1445,14 @@ export const TweakTagsEditBar = (): ReactElement => {
       <div ref={barRef} style={{ ...barStyle, ...positionStyle }}>
         {dragHandle}
 
-        <span style={emailStyle}>{user.email}</span>
+        <button
+          style={openPanel === 'account' ? { ...emailButtonStyle, color: COLORS.text } : emailButtonStyle}
+          type="button"
+          title={`${user.email} - change your email or password`}
+          onClick={() => togglePanel('account')}
+        >
+          {user.email}
+        </button>
 
         <button
           style={openPanel === 'help' ? buttonStyle : iconButtonStyle}
@@ -913,6 +1471,16 @@ export const TweakTagsEditBar = (): ReactElement => {
             onClick={() => togglePanel('tags')}
           >
             Tags
+          </button>
+        ) : null}
+
+        {isSuperuser ? (
+          <button
+            style={openPanel === 'users' ? buttonStyle : subtleButtonStyle}
+            type="button"
+            onClick={() => togglePanel('users')}
+          >
+            Users
           </button>
         ) : null}
 
