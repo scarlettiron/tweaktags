@@ -6,5 +6,5 @@
 //Scarlett A. Scott (codescarlett)
 
 export type { DbAdapter, UserStore, RefreshTokenStore } from './db-adapter.js';
-export type { AuthAdapter } from './auth-adapter.js';
+export type { AuthAdapter, DirectoryUser, UserDirectory } from './auth-adapter.js';
 export type { StorageAdapter } from './storage-adapter.js';

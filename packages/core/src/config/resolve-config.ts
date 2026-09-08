@@ -14,7 +14,7 @@ import {
   DEFAULT_TENANT,
   DEFAULT_WHITE_LABEL,
 } from '../constants/index.js';
-import type { TweakTagsConfig, TweakTagsUserConfig } from '../types/index.js';
+import type { ResolvedAuthConfig, TweakTagsConfig, TweakTagsUserConfig } from '../types/index.js';
 import { badRequest } from '../utilities/errors.js';
 import { createDefaultLogger } from '../utilities/logger.js';
 import { assertValidTenant } from '../utilities/tenant.js';
@@ -82,12 +82,36 @@ export const resolveConfig = (input: TweakTagsUserConfig): TweakTagsConfig => {
     }
   }
 
-  if (!input.auth || input.auth.provider !== 'jwt') {
-    throw badRequest('The config needs an auth section with provider set to "jwt"');
+  if (!input.auth || (input.auth.provider !== 'jwt' && input.auth.provider !== 'cognito')) {
+    throw badRequest('The config needs an auth section with provider set to "jwt" or "cognito"');
   }
 
-  if (typeof input.auth.jwtSecret !== 'string' || input.auth.jwtSecret.length < 16) {
-    throw badRequest('The auth config needs a jwtSecret of at least 16 characters');
+  if (input.auth.provider === 'jwt') {
+    if (typeof input.auth.jwtSecret !== 'string' || input.auth.jwtSecret.length < 16) {
+      throw badRequest('The auth config needs a jwtSecret of at least 16 characters');
+    }
+  } else {
+    //Caught here rather than at the first sign in, where a missing pool id comes
+    //back from AWS as a parameter validation error that names nothing useful.
+    if (!input.auth.cognito) {
+      throw badRequest('The cognito auth config needs a "cognito" section');
+    }
+
+    const fields = ['region', 'userPoolId', 'clientId'] as const;
+
+    for (const field of fields) {
+      const value = input.auth.cognito[field];
+
+      if (typeof value !== 'string' || value.trim() === '') {
+        throw badRequest(`The cognito auth config needs a "${field}"`);
+      }
+    }
+
+    const { clientSecret } = input.auth.cognito;
+
+    if (clientSecret !== undefined && (typeof clientSecret !== 'string' || clientSecret === '')) {
+      throw badRequest('The cognito auth "clientSecret" must be a non empty string when set');
+    }
   }
 
   if (input.storage) {
@@ -100,6 +124,26 @@ export const resolveConfig = (input: TweakTagsUserConfig): TweakTagsConfig => {
     }
   }
 
+  //The session, cookie and csrf settings are TweakTags' own whoever checks the
+  //password, so they are filled in once and only the credentials half differs.
+  const sharedAuth = {
+    accessTtlSeconds: input.auth.accessTtlSeconds ?? DEFAULT_ACCESS_TTL_SECONDS,
+    refreshTtlSeconds: input.auth.refreshTtlSeconds ?? DEFAULT_REFRESH_TTL_SECONDS,
+    strictRevocation: input.auth.strictRevocation ?? false,
+    tokenStorage: input.auth.tokenStorage ?? 'cookie',
+    cookieName: input.auth.cookieName ?? 'tweaktags_token',
+    refreshCookieName: input.auth.refreshCookieName ?? 'tweaktags_refresh',
+    csrfProtection: input.auth.csrfProtection ?? true,
+    csrfCookieName: input.auth.csrfCookieName ?? 'tweaktags_csrf',
+    cookieSecure: input.auth.cookieSecure ?? true,
+    cookieSameSite: input.auth.cookieSameSite ?? 'lax',
+  } as const;
+
+  const auth: ResolvedAuthConfig =
+    input.auth.provider === 'jwt'
+      ? { ...sharedAuth, provider: 'jwt', jwtSecret: input.auth.jwtSecret }
+      : { ...sharedAuth, provider: 'cognito', cognito: input.auth.cognito };
+
   return {
     mode: input.mode ?? DEFAULT_MODE,
     editInView: input.editInView ?? DEFAULT_EDIT_IN_VIEW,
@@ -107,20 +151,7 @@ export const resolveConfig = (input: TweakTagsUserConfig): TweakTagsConfig => {
     whiteLabel: input.whiteLabel ?? DEFAULT_WHITE_LABEL,
     apiBasePath: input.apiBasePath ?? DEFAULT_API_BASE_PATH,
     database: input.database,
-    auth: {
-      provider: 'jwt',
-      jwtSecret: input.auth.jwtSecret,
-      accessTtlSeconds: input.auth.accessTtlSeconds ?? DEFAULT_ACCESS_TTL_SECONDS,
-      refreshTtlSeconds: input.auth.refreshTtlSeconds ?? DEFAULT_REFRESH_TTL_SECONDS,
-      strictRevocation: input.auth.strictRevocation ?? false,
-      tokenStorage: input.auth.tokenStorage ?? 'cookie',
-      cookieName: input.auth.cookieName ?? 'tweaktags_token',
-      refreshCookieName: input.auth.refreshCookieName ?? 'tweaktags_refresh',
-      csrfProtection: input.auth.csrfProtection ?? true,
-      csrfCookieName: input.auth.csrfCookieName ?? 'tweaktags_csrf',
-      cookieSecure: input.auth.cookieSecure ?? true,
-      cookieSameSite: input.auth.cookieSameSite ?? 'lax',
-    },
+    auth,
     cors: input.cors,
     storage: input.storage,
     //The tenant is validated now so a bad value fails at startup, not per request.

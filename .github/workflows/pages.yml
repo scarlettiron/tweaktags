@@ -55,8 +55,12 @@ jobs:
       # The demo page at /demo runs the real browser build against a small in
       # memory backend, so there is nothing to keep in sync by hand: both files
       # are copied in from the source of truth on every deploy.
+      # The trailing "..." is pnpm for "and its dependencies", so core and
+      # browser are built first. Without it only vanillajs builds, its dts step
+      # cannot resolve @tweaktags/browser (dist is gitignored, so nothing has
+      # built it yet), and the whole deploy fails before the copy below.
       - name: Build the browser bundle for the live demo
-        run: pnpm --filter @tweaktags/vanillajs build
+        run: pnpm --filter @tweaktags/vanillajs... build
 
       - name: Copy the demo assets into the site
         run: |

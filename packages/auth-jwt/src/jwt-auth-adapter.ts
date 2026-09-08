@@ -254,4 +254,11 @@ export class JwtAuthAdapter implements AuthAdapter {
 
     return { userId: user.id, role: user.role };
   }
+
+  //These are our own tokens, so ending a session means deleting its rows. A hard
+  //delete rather than a revoke flag: it also satisfies isRefreshFamilyActive and
+  //clears rows that would otherwise outlive the user they belong to.
+  public async endSessions(userId: string, exceptFamilyId?: string): Promise<void> {
+    await this.store.deleteRefreshTokensForUser(userId, exceptFamilyId);
+  }
 }

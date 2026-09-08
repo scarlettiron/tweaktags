@@ -41,6 +41,13 @@ export interface AuthUser {
 //Only the auth adapter and the database adapter should touch this shape.
 export interface StoredUser extends AuthUser {
   passwordHash: string;
+
+  //This user's id at the identity provider, when their login lives outside
+  //TweakTags. It is the Cognito "sub" when the provider is cognito, and null for
+  //an ordinary user whose password is the hash above.
+  //Deliberately not named after any one provider: it is what links a TweakTags
+  //row to whoever actually holds the password.
+  externalId: string | null;
 }
 
 //The fields needed to create a new user row.
@@ -48,6 +55,9 @@ export interface CreateUserInput {
   email: string;
   role: Role;
   passwordHash: string;
+
+  //Set when the login lives at an identity provider. See StoredUser.externalId.
+  externalId?: string;
 }
 
 //A single editable piece of content, keyed by its tag.
@@ -125,12 +135,30 @@ export interface DatabaseConfig {
 //a different origin.
 export type TokenStorage = 'cookie' | 'header';
 
-//The auth settings.
-//For now the only provider is jwt, which signs JSON Web Tokens.
-export interface AuthConfig {
-  provider: 'jwt';
-  jwtSecret: string;
+//An AWS Cognito user pool, for installs where the people who edit the site
+//already have logins somewhere central.
+//There are no credential fields on purpose. The AWS SDK finds them the usual
+//way, from an instance role or the environment, which is the same choice the
+//storage adapter makes and keeps secrets out of the config file.
+export interface CognitoConfig {
+  //The region the pool lives in, for example 'us-east-1'.
+  region: string;
 
+  //The pool id, which looks like 'us-east-1_AbCdEfGhI'.
+  userPoolId: string;
+
+  //The app client TweakTags signs in through. It must allow the
+  //ADMIN_USER_PASSWORD_AUTH flow, since the password is checked on the server.
+  clientId: string;
+
+  //Only when the app client was created with a secret. Every call then needs a
+  //SECRET_HASH built from it, which the adapter does for you.
+  clientSecret?: string;
+}
+
+//The auth settings every provider shares. The session shape, the cookies and the
+//csrf check are TweakTags' own, whoever is checking the password.
+export interface AuthConfigBase {
   //How long the short lived access token lasts, in seconds. Defaults to 15 minutes.
   accessTtlSeconds?: number;
 
@@ -142,6 +170,8 @@ export interface AuthConfig {
   //logout or a revoked session ends access right away. This costs one database
   //read per request. When false, access tokens are stateless and simply expire.
   //Defaults to false.
+  //It applies to the jwt provider only. Cognito owns its own sessions, so it
+  //already revokes at the source and this setting does nothing there.
   strictRevocation?: boolean;
 
   //How the browser holds the tokens. Defaults to 'cookie'.
@@ -171,10 +201,26 @@ export interface AuthConfig {
   cookieSameSite?: 'strict' | 'lax' | 'none';
 }
 
-//The auth settings after defaults have been applied.
-export interface ResolvedAuthConfig {
+//Email and password, checked against the users table and signed into TweakTags'
+//own JSON Web Tokens. This is the default and needs nothing installed.
+export interface JwtAuthConfig extends AuthConfigBase {
   provider: 'jwt';
   jwtSecret: string;
+}
+
+//Email and password, checked against an AWS Cognito user pool. Needs the
+//@tweaktags/auth-cognito package installed.
+export interface CognitoAuthConfig extends AuthConfigBase {
+  provider: 'cognito';
+  cognito: CognitoConfig;
+}
+
+//The auth settings. A union rather than one interface, so that jwtSecret is
+//required for jwt and cannot be set for cognito, and the other way round.
+export type AuthConfig = JwtAuthConfig | CognitoAuthConfig;
+
+//The auth settings after defaults have been applied.
+export interface ResolvedAuthConfigBase {
   accessTtlSeconds: number;
   refreshTtlSeconds: number;
   strictRevocation: boolean;
@@ -186,6 +232,18 @@ export interface ResolvedAuthConfig {
   cookieSecure: boolean;
   cookieSameSite: 'strict' | 'lax' | 'none';
 }
+
+export interface ResolvedJwtAuthConfig extends ResolvedAuthConfigBase {
+  provider: 'jwt';
+  jwtSecret: string;
+}
+
+export interface ResolvedCognitoAuthConfig extends ResolvedAuthConfigBase {
+  provider: 'cognito';
+  cognito: CognitoConfig;
+}
+
+export type ResolvedAuthConfig = ResolvedJwtAuthConfig | ResolvedCognitoAuthConfig;
 
 //Where uploaded media files are stored. Optional, so media can always just be a
 //url the user pastes in. When set, editors get an upload button, and the server

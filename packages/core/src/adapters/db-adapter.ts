@@ -48,6 +48,13 @@ export interface RefreshTokenStore {
   //Whether a family still has a live token. Used by strict revocation to check
   //that an access token's session has not been logged out or revoked.
   isRefreshFamilyActive(familyId: string): Promise<boolean>;
+
+  //Delete every refresh token belonging to a user, which ends their sessions.
+  //One family can be spared, so somebody changing their own password signs out
+  //their other devices without signing out the one they are typing on.
+  //It sits here rather than on the full adapter because the auth adapter is how
+  //sessions end now, and it is only ever handed this narrower store.
+  deleteRefreshTokensForUser(userId: string, exceptFamilyId?: string): Promise<void>;
 }
 
 //The full database adapter.
@@ -98,13 +105,18 @@ export interface DbAdapter extends UserStore, RefreshTokenStore {
   //conflict when somebody else already has that address.
   setUserEmail(id: string, email: string): Promise<boolean>;
 
+  //Find the user linked to an identity provider account. Null when nobody is.
+  //This is on the hot path: a provider that issues its own tokens carries only
+  //its own id in them, so the role has to be read here on every request.
+  findUserByExternalId(externalId: string): Promise<StoredUser | null>;
+
+  //Link a user to an identity provider account, or pass null to unlink them.
+  //False when no user has that id, and throws a conflict when that provider
+  //account is already linked to somebody else.
+  setUserExternalId(id: string, externalId: string | null): Promise<boolean>;
+
   //Remove a user. False when no user has that id.
   deleteUser(id: string): Promise<boolean>;
-
-  //Delete every refresh token belonging to a user, which ends their sessions.
-  //One family can be spared, so somebody changing their own password signs out
-  //their other devices without signing out the one they are typing on.
-  deleteRefreshTokensForUser(userId: string, exceptFamilyId?: string): Promise<void>;
 
   //Close any open database connections.
   close(): Promise<void>;
