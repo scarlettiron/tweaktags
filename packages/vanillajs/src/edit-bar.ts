@@ -110,49 +110,69 @@ export const mountEditBar = (
     }
   };
 
-  //A grip that drags whatever bar is currently shown.
-  const makeGrip = (): HTMLElement => {
-    const grip = el('span', { class: 'tt-grip', title: 'Drag to move', 'aria-label': 'Drag to move' });
+  //The dotted grab handle. It is only the affordance: the whole bar is draggable,
+  //because a ten pixel target is one most people never find and some cannot hit
+  //at all.
+  const makeGrip = (): HTMLElement =>
+    el('span', { class: 'tt-grip', title: 'Drag to move', 'aria-label': 'Drag to move' });
+
+  //Anything the pointer can act on in its own right. A drag that started on one
+  //of these would swallow the click, so the bar leaves them alone.
+  const INTERACTIVE = 'button, a, input, select, textarea, [contenteditable="true"]';
+
+  const startsOnAControl = (target: EventTarget | null): boolean =>
+    target instanceof Element && target.closest(INTERACTIVE) !== null;
+
+  //Makes the whole bar draggable by its own background, with the grip as the
+  //visible hint. The pointer is captured on the bar itself, so a fast drag that
+  //outruns the cursor keeps moving it.
+  const makeDraggable = (node: HTMLElement): void => {
     let offset: { x: number; y: number } | null = null;
 
-    grip.addEventListener('pointerdown', (event) => {
-      if (!current) {
+    node.addEventListener('pointerdown', (event) => {
+      if (startsOnAControl(event.target)) {
         return;
       }
 
-      const rect = current.getBoundingClientRect();
+      const rect = node.getBoundingClientRect();
       offset = { x: event.clientX - rect.left, y: event.clientY - rect.top };
-      grip.setPointerCapture(event.pointerId);
+      node.style.cursor = 'grabbing';
+
+      try {
+        node.setPointerCapture(event.pointerId);
+      } catch {
+        //Not every environment has pointer capture. Without it a fast drag can
+        //outrun the cursor and stop, which is worth having rather than nothing.
+      }
     });
 
-    grip.addEventListener('pointermove', (event) => {
-      if (!offset || !current) {
+    node.addEventListener('pointermove', (event) => {
+      if (!offset) {
         return;
       }
 
-      const maxLeft = Math.max(0, window.innerWidth - current.offsetWidth);
-      const maxTop = Math.max(0, window.innerHeight - current.offsetHeight);
+      const maxLeft = Math.max(0, window.innerWidth - node.offsetWidth);
+      const maxTop = Math.max(0, window.innerHeight - node.offsetHeight);
       const left = Math.min(Math.max(0, event.clientX - offset.x), maxLeft);
       const top = Math.min(Math.max(0, event.clientY - offset.y), maxTop);
 
       position = { left, top };
-      applyPosition(current);
+      applyPosition(node);
     });
 
     const release = (event: PointerEvent): void => {
       offset = null;
+      node.style.cursor = '';
 
       try {
-        grip.releasePointerCapture(event.pointerId);
+        node.releasePointerCapture(event.pointerId);
       } catch {
         //The pointer may already be released, which is fine.
       }
     };
 
-    grip.addEventListener('pointerup', release);
-    grip.addEventListener('pointercancel', release);
-
-    return grip;
+    node.addEventListener('pointerup', release);
+    node.addEventListener('pointercancel', release);
   };
 
   const togglePanel = (panel: Panel): void => {
@@ -667,12 +687,80 @@ export const mountEditBar = (
     //so the field takes the place of the second line rather than adding a third.
     let openPasswordFor: string | null = null;
 
+    //With an identity provider in front of the server, an address may already
+    //have an account there, so adding somebody is two jobs rather than one: make
+    //a new account, or point TweakTags at one that exists already. Without a
+    //directory only the first is possible, and none of this is drawn.
+    let linkMode = false;
+
     const newEmail = el('input', { class: 'tt-input', type: 'email', autocomplete: 'off', placeholder: 'email' });
     const newPassword = el('input', { class: 'tt-input', type: 'password', autocomplete: 'new-password', placeholder: 'password' });
+    const newExternalId = el('input', {
+      class: 'tt-input tt-mono',
+      type: 'text',
+      autocomplete: 'off',
+      placeholder: 'identity provider user id (Cognito sub)',
+    });
     const newRole = el('select', { class: 'tt-input' }, roleOptions());
     const createError = el('span', { class: 'tt-error' });
     createError.style.display = 'none';
+    //A success the server wanted to explain, kept under the form as well as in
+    //the toast so it can still be read once the toast has gone. Hint styling
+    //rather than error styling, because nothing went wrong.
+    const createNotice = el('span', { class: 'tt-hint' });
+    createNotice.style.display = 'none';
     const createButton = el('button', { class: 'tt-btn', type: 'button', text: 'Create user' });
+
+    //The two modes differ by a single field, so they share the rest of the form
+    //and swap that one in and out. Redrawing only this much keeps whatever was
+    //already typed into the fields the modes have in common.
+    const formWrap = el('div', { style: { display: 'flex', flexDirection: 'column', gap: '0.6rem' } });
+
+    const drawForm = (): void => {
+      clear(formWrap);
+      formWrap.append(newEmail);
+
+      if (linkMode) {
+        formWrap.append(
+          newExternalId,
+          el('span', { class: 'tt-hint', text: 'TweakTags sets no password for a linked account.' }),
+        );
+      } else {
+        formWrap.append(newPassword);
+      }
+
+      formWrap.append(newRole);
+    };
+
+    //Two short buttons on one line. The panel is 21rem wide, so a stacked pair
+    //of full width ones would push the form itself down out of sight.
+    const createModeButton = el('button', {
+      class: 'tt-btn',
+      style: { padding: '0.2rem 0.5rem' },
+      type: 'button',
+      text: 'Create new',
+    });
+    const linkModeButton = el('button', {
+      class: 'tt-btn tt-subtle',
+      style: { padding: '0.2rem 0.5rem' },
+      type: 'button',
+      text: 'Link existing',
+    });
+
+    const setLinkMode = (next: boolean): void => {
+      linkMode = next;
+      createModeButton.className = next ? 'tt-btn tt-subtle' : 'tt-btn';
+      linkModeButton.className = next ? 'tt-btn' : 'tt-btn tt-subtle';
+      createButton.textContent = next ? 'Link account' : 'Create user';
+      //Whatever either box says was about the mode being left behind, so neither
+      //of them still applies.
+      createError.style.display = 'none';
+      createNotice.style.display = 'none';
+      drawForm();
+    };
+
+    createModeButton.addEventListener('click', () => setLinkMode(false));
+    linkModeButton.addEventListener('click', () => setLinkMode(true));
 
     const searchInput = el('input', { class: 'tt-input', type: 'search', placeholder: 'Search users...' });
     const listWrap = el('div', { style: { display: 'flex', flexDirection: 'column', gap: '0.6rem' } });
@@ -919,7 +1007,9 @@ export const mountEditBar = (
 
     const handleCreate = async (): Promise<void> => {
       createError.style.display = 'none';
+      createNotice.style.display = 'none';
       const email = newEmail.value.trim();
+      const externalId = newExternalId.value.trim();
 
       //The same two checks the server makes, so a typo comes back straight away
       //instead of as a 400 after a round trip. A duplicate address can only be
@@ -930,7 +1020,15 @@ export const mountEditBar = (
         return;
       }
 
-      if (newPassword.value.length < MIN_PASSWORD_LENGTH) {
+      //Linking sets no password at all, so the length rule has nothing to
+      //measure. What it needs instead is the id the provider knows them by.
+      if (linkMode) {
+        if (externalId === '') {
+          showCreateError('Enter the identity provider user id.');
+
+          return;
+        }
+      } else if (newPassword.value.length < MIN_PASSWORD_LENGTH) {
         showCreateError(`The password must be at least ${MIN_PASSWORD_LENGTH} characters.`);
 
         return;
@@ -939,12 +1037,28 @@ export const mountEditBar = (
       createButton.disabled = true;
 
       try {
-        await engine.createUser(email, newPassword.value, newRole.value as Role);
+        const result = await engine.createUser(
+          email,
+          linkMode ? '' : newPassword.value,
+          newRole.value as Role,
+          linkMode ? externalId : undefined,
+        );
         newEmail.value = '';
         newPassword.value = '';
+        newExternalId.value = '';
         newRole.value = ROLES.EDITOR;
         await loadUsers();
-        engine.notify(`Created the user "${email}".`, 'success');
+
+        //The server's wording, not ours: it is the only side that knows what it
+        //actually did with the address, and what it says is worth more than
+        //"created" would be.
+        if (result.notice) {
+          createNotice.textContent = result.notice;
+          createNotice.style.display = '';
+          engine.notify(result.notice, 'success');
+        } else {
+          engine.notify(`Created the user "${email}".`, 'success');
+        }
       } catch (createErr) {
         const message = createErr instanceof Error ? createErr.message : 'Could not create the user';
         showCreateError(message);
@@ -961,17 +1075,28 @@ export const mountEditBar = (
       drawList();
     });
 
+    drawForm();
+
     const kids: Child[] = [
       panelHeader('Users', () => {
         openPanel = null;
         render();
       }),
       el('strong', { text: 'Add a user' }),
-      newEmail,
-      newPassword,
-      newRole,
+    ];
+
+    //Only an install with a directory behind it has two ways to add somebody,
+    //and by far the common case is the one that has not, so that one gets
+    //today's form with no toggle over it at all.
+    if (engine.hasUserDirectory) {
+      kids.push(el('div', { style: { display: 'flex', gap: '0.4rem' } }, [createModeButton, linkModeButton]));
+    }
+
+    kids.push(
+      formWrap,
       createButton,
       createError,
+      createNotice,
       el('span', {
         class: 'tt-hint',
         text: 'An editor can change existing content. A superuser can also create tags and manage users.',
@@ -980,7 +1105,7 @@ export const mountEditBar = (
       el('strong', { text: 'Existing users' }),
       searchInput,
       listWrap,
-    ];
+    );
 
     void loadUsers();
 
@@ -1231,7 +1356,9 @@ export const mountEditBar = (
     applyScope(node, theme);
 
     if (draggable) {
+      node.classList.add('tt-draggable');
       applyPosition(node);
+      makeDraggable(node);
     }
 
     document.body.appendChild(node);

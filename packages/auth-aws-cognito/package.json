@@ -1,7 +1,7 @@
 {
-  "name": "@tweaktags/storage-s3",
+  "name": "@tweaktags/auth-aws-cognito",
   "version": "1.5.0",
-  "description": "Media uploads to S3 or any S3 compatible store for TweakTags, the self-hosted inline CMS for Next.js and React. Uses short lived presigned uploads.",
+  "description": "AWS Cognito authentication for TweakTags, the self-hosted inline CMS for Next.js and React. Sign in editors against an existing Cognito user pool.",
   "keywords": [
     "tweaktags",
     "tweak-tags",
@@ -35,17 +35,24 @@
     "tweak tags",
     "scarlett scott",
     "scarlettiron",
-    "s3",
-    "storage",
-    "uploads",
-    "presigned-url",
-    "image-upload",
+    "auth",
+    "authentication",
+    "cognito",
+    "aws-cognito",
+    "amazon-cognito",
+    "user-pool",
+    "sso",
+    "login",
+    "aws",
+    "aws-sdk",
+    "amazon-web-services",
+    "identity-provider",
     "self-hosted"
   ],
   "license": "MIT",
   "type": "module",
   "engines": {
-    "node": ">=16"
+    "node": ">=20"
   },
   "files": [
     "dist"
@@ -73,10 +80,11 @@
   },
   "dependencies": {
     "@tweaktags/core": "workspace:*",
-    "@aws-sdk/client-s3": "^3.600.0",
-    "@aws-sdk/s3-request-presigner": "^3.600.0"
+    "@aws-sdk/client-cognito-identity-provider": "^3.600.0",
+    "aws-jwt-verify": "^4.0.1"
   },
   "devDependencies": {
+    "@types/node": "^22.9.0",
     "rimraf": "^6.0.1",
     "tsup": "^8.3.5",
     "typescript": "^5.6.3"
@@ -88,7 +96,7 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/scarlettiron/tweaktags.git",
-    "directory": "packages/storage-s3"
+    "directory": "packages/auth-aws-cognito"
   },
   "homepage": "https://scarlettiron.github.io/tweaktags",
   "bugs": {

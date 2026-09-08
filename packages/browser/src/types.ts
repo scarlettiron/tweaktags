@@ -28,6 +28,13 @@ export interface EngineOptions {
   //it to false to show the TweakTags name in the UI.
   whiteLabel?: boolean;
 
+  //Which auth provider the server is configured with. Defaults to 'jwt'.
+  //It changes what the Users panel offers: with an identity provider, adding
+  //somebody can also mean linking an account that already exists there.
+  //Presentation only. The server enforces every rule whatever this says, so
+  //getting it wrong makes the panel wrong, never the permissions.
+  authProvider?: AuthProvider;
+
   //How the login token is kept. 'cookie' relies on a secure httpOnly cookie set
   //by the server. 'header' keeps the token in the browser and sends it as a
   //bearer header. Must match your server config. Defaults to 'cookie'.
@@ -38,6 +45,9 @@ export interface EngineOptions {
   csrfCookieName?: string;
 }
 
+//Who checks passwords for this install. 'jwt' is TweakTags' own users table.
+export type AuthProvider = 'jwt' | 'aws-cognito';
+
 //A snapshot of the engine state that UIs render from.
 export interface EngineState {
   user: import('@tweaktags/core').AuthUser | null;
@@ -47,6 +57,9 @@ export interface EngineState {
   //Whether the signed in user may manage tags and other users. The engine works
   //this out once so the panels do not each retype the role comparison.
   isSuperuser: boolean;
+
+  //Which auth provider the server is configured with. See EngineOptions.
+  authProvider: AuthProvider;
   editInView: boolean;
   richText: boolean;
   mediaUpload: boolean;

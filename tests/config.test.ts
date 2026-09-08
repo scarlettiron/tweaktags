@@ -148,13 +148,80 @@ describe('resolveConfig auth validation', () => {
     expect(() => resolveConfig({ database: baseConfig.database } as TweakTagsUserConfig)).toThrow();
   });
 
-  it('rejects an auth provider that is not jwt', () => {
+  it('rejects an auth provider that is neither jwt nor cognito', () => {
     expect(() =>
       resolveConfig({
         ...baseConfig,
-        auth: { provider: 'cognito' as 'jwt', jwtSecret: 'a-secret-that-is-long-enough' },
+        auth: { provider: 'okta' as 'jwt', jwtSecret: 'a-secret-that-is-long-enough' },
       }),
     ).toThrow();
+  });
+});
+
+describe('resolveConfig with aws-cognito auth', () => {
+  const cognito = {
+    region: 'us-east-1',
+    userPoolId: 'us-east-1_AbCdEfGhI',
+    clientId: 'a-client-id',
+  };
+
+  const withCognito = (overrides: Record<string, unknown> = {}): TweakTagsUserConfig => ({
+    database: baseConfig.database,
+    auth: { provider: 'aws-cognito', awsCognito: { ...cognito, ...overrides } },
+  });
+
+  it('accepts a complete cognito section', () => {
+    const { auth } = resolveConfig(withCognito());
+
+    expect(auth.provider).toBe('aws-cognito');
+    expect(auth.provider === 'aws-cognito' && auth.awsCognito.userPoolId).toBe('us-east-1_AbCdEfGhI');
+  });
+
+  //The session, cookie and csrf settings belong to TweakTags whoever is checking
+  //the password, so they are filled in the same way for both providers.
+  it('fills in the same session defaults as jwt', () => {
+    const { auth } = resolveConfig(withCognito());
+
+    expect(auth.tokenStorage).toBe('cookie');
+    expect(auth.cookieName).toBe('tweaktags_token');
+    expect(auth.csrfProtection).toBe(true);
+    expect(auth.cookieSecure).toBe(true);
+    expect(auth.cookieSameSite).toBe('lax');
+  });
+
+  it('does not ask for a jwtSecret', () => {
+    expect(() => resolveConfig(withCognito())).not.toThrow();
+  });
+
+  it('rejects a cognito provider with no cognito section', () => {
+    expect(() =>
+      resolveConfig({
+        database: baseConfig.database,
+        auth: { provider: 'aws-cognito' } as unknown as TweakTagsUserConfig['auth'],
+      }),
+    ).toThrow(/needs an "awsCognito" section/);
+  });
+
+  //Caught at startup rather than at the first sign in, where AWS answers with a
+  //parameter validation error that names nothing useful.
+  it.each([
+    ['region', { region: '' }],
+    ['userPoolId', { userPoolId: '' }],
+    ['clientId', { clientId: '' }],
+    ['a whitespace only value', { region: '   ' }],
+    ['a non string', { clientId: 42 as unknown as string }],
+  ])('rejects a cognito config missing %s', (_label, overrides) => {
+    expect(() => resolveConfig(withCognito(overrides))).toThrow();
+  });
+
+  it('rejects an empty client secret, which is never what somebody meant', () => {
+    expect(() => resolveConfig(withCognito({ clientSecret: '' }))).toThrow(/clientSecret/);
+  });
+
+  it('accepts a client secret when the app client has one', () => {
+    const { auth } = resolveConfig(withCognito({ clientSecret: 'a-real-secret' }));
+
+    expect(auth.provider === 'aws-cognito' && auth.awsCognito.clientSecret).toBe('a-real-secret');
   });
 });
 

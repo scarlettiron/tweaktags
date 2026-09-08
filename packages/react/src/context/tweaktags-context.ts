@@ -9,6 +9,7 @@ import { createContext } from 'react';
 import type { ReactNode } from 'react';
 
 import type { AuthUser, ContentRecord, Role, TagType } from '@tweaktags/core';
+import type { CreateUserResult } from '@tweaktags/browser';
 
 //Everything the provider shares with the rest of the app.
 //Components and hooks read this through the useTweakTags hook.
@@ -39,6 +40,10 @@ export interface TweakTagsContextValue {
 
   //Whether the current user may manage tags and other users.
   isSuperuser: boolean;
+
+  //Whether adding a user can also mean linking an account that already exists
+  //at an identity provider, rather than only creating a new one.
+  hasUserDirectory: boolean;
 
   //Turns edit in view mode on or off.
   setEditing: (on: boolean) => void;
@@ -76,7 +81,15 @@ export interface TweakTagsContextValue {
   listUsers: () => Promise<AuthUser[]>;
 
   //Adds a user with a starting password and role. Superuser only.
-  createUser: (email: string, password: string, role: Role) => Promise<AuthUser>;
+  //With an identity provider, pass externalId to link an account that already
+  //exists there instead of creating one. The notice on the result is a success
+  //message worth showing, not an error.
+  createUser: (
+    email: string,
+    password: string,
+    role: Role,
+    externalId?: string,
+  ) => Promise<CreateUserResult>;
 
   //Changes somebody else's role, which signs them out. Superuser only.
   //The server refuses to change your own role.

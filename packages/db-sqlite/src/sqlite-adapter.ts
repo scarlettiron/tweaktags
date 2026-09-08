@@ -211,7 +211,9 @@ export class SqliteAdapter implements DbAdapter {
 
   public async findUserByEmail(email: string): Promise<StoredUser | null> {
     const row = this.db
-      .prepare(`SELECT id, email, password_hash, role FROM "${AUTH_TABLE}" WHERE email = ?;`)
+      .prepare(
+        `SELECT id, email, password_hash, role, external_id FROM "${AUTH_TABLE}" WHERE email = ?;`,
+      )
       .get(email) as never;
 
     return row ? mapUserRow(row) : null;
@@ -219,7 +221,9 @@ export class SqliteAdapter implements DbAdapter {
 
   public async findUserById(id: string): Promise<StoredUser | null> {
     const row = this.db
-      .prepare(`SELECT id, email, password_hash, role FROM "${AUTH_TABLE}" WHERE id = ?;`)
+      .prepare(
+        `SELECT id, email, password_hash, role, external_id FROM "${AUTH_TABLE}" WHERE id = ?;`,
+      )
       .get(id) as never;
 
     return row ? mapUserRow(row) : null;
@@ -228,14 +232,18 @@ export class SqliteAdapter implements DbAdapter {
   public async createUser(input: CreateUserInput): Promise<StoredUser> {
     try {
       const result = this.db
-        .prepare(`INSERT INTO "${AUTH_TABLE}" (email, password_hash, role) VALUES (?, ?, ?);`)
-        .run(input.email, input.passwordHash, input.role);
+        .prepare(
+          `INSERT INTO "${AUTH_TABLE}" (email, password_hash, role, external_id)
+           VALUES (?, ?, ?, ?);`,
+        )
+        .run(input.email, input.passwordHash, input.role, input.externalId ?? null);
 
       return {
         id: String(result.lastInsertRowid),
         email: input.email,
         role: input.role,
         passwordHash: input.passwordHash,
+        externalId: input.externalId ?? null,
       };
     } catch (error) {
       if (isConstraintError(error)) {
@@ -284,6 +292,35 @@ export class SqliteAdapter implements DbAdapter {
       //so this is the same conflict a caller already handles from createUser.
       if (isConstraintError(error)) {
         throw conflict(`A user with the email "${email}" already exists`);
+      }
+
+      throw error;
+    }
+  }
+
+  public async findUserByExternalId(externalId: string): Promise<StoredUser | null> {
+    const row = this.db
+      .prepare(
+        `SELECT id, email, password_hash, role, external_id
+         FROM "${AUTH_TABLE}" WHERE external_id = ?;`,
+      )
+      .get(externalId) as never;
+
+    return row ? mapUserRow(row) : null;
+  }
+
+  public async setUserExternalId(id: string, externalId: string | null): Promise<boolean> {
+    try {
+      const result = this.db
+        .prepare(`UPDATE "${AUTH_TABLE}" SET external_id = ? WHERE id = ?;`)
+        .run(externalId, id);
+
+      return result.changes > 0;
+    } catch (error) {
+      //The unique index on external_id guards an update the same way it guards
+      //an insert, so one provider account cannot end up on two users.
+      if (isConstraintError(error)) {
+        throw conflict('That identity provider account is already linked to another user');
       }
 
       throw error;

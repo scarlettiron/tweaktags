@@ -11,7 +11,7 @@ Bolt a CMS onto a website you already have, instead of rebuilding the site aroun
 parts you want to edit with a single attribute, sign in, flip on edit mode, change the content
 directly on the live page, and it saves to your database. Everyone else just sees the saved content.
 
-**[Try the live demo](https://scarlettiron.github.io/tweaktags/demo/)** &mdash; edit a page in your
+**[Try the live demo](https://scarlettiron.github.io/tweaktags/demo/)**: edit a page in your
 browser, no install and no sign up.
 
 **Documentation website: [scarlettiron.github.io/tweaktags](https://scarlettiron.github.io/tweaktags/)**
@@ -51,12 +51,13 @@ this kind of thing before, that is fine. Follow each step in order and copy the 
 14. [Creating and managing tags](#creating-and-managing-tags)
 15. [Tag naming rules](#tag-naming-rules)
 16. [Managing users](#managing-users)
-17. [Settings reference](#settings-reference)
-18. [Command reference](#command-reference)
-19. [Troubleshooting](#troubleshooting)
-20. [App Router or Pages Router](#app-router-or-pages-router)
-21. [Using TweakTags without Next](#using-tweaktags-without-next)
-22. [Packages](#packages)
+17. [Authentication](#authentication)
+18. [Settings reference](#settings-reference)
+19. [Command reference](#command-reference)
+20. [Troubleshooting](#troubleshooting)
+21. [App Router or Pages Router](#app-router-or-pages-router)
+22. [Using TweakTags without Next](#using-tweaktags-without-next)
+23. [Packages](#packages)
 
 ## How it works in plain words
 
@@ -124,6 +125,8 @@ This is why the browser never needs your database password. Only the server side
 You need these things ready first.
 
 - **Node.js version 16 or newer.** Check your version by running `node --version` in a terminal.
+  The one exception is the optional `@tweaktags/auth-aws-cognito` package, which needs **Node 20
+  or newer** because the AWS SDK does. See [AWS Cognito](#aws-cognito).
 - **TypeScript 4.5 or newer**, if your app uses TypeScript. Check with `npx tsc --version`. Older
   versions cannot read the type declarations TweakTags ships. TypeScript is optional: everything
   works from plain JavaScript too.
@@ -603,6 +606,182 @@ out. Tell them yourself.
 the way to make the very first superuser on a fresh install, before there is anybody to sign in as.
 See the [command reference](#command-reference).
 
+<a id="cognito-authentication"></a>
+
+## Authentication
+
+TweakTags has two ways to check a password and you pick one in the config. `provider: 'jwt'` keeps
+the users and the passwords itself. `provider: 'aws-cognito'` hands both to an AWS Cognito user pool.
+It is one line, and a required one, so the choice is made on purpose rather than defaulted into and
+migrated out of later.
+
+|  | `provider: 'jwt'` | `provider: 'aws-cognito'` |
+| --- | --- | --- |
+| What you get | Built in, nothing to install. Passwords are bcrypt hashes in the `__TweakTags__Users` table and TweakTags issues its own access and refresh tokens. The refresh token rotates on every use, and a reused one is treated as theft: the whole session family is revoked. | An AWS Cognito user pool holds the passwords and issues the tokens, and TweakTags verifies them against the pool's JWKS. Editors sign in with the account they already have, and losing that account takes the editor away with it. |
+| What it costs | A `jwtSecret` of 16 characters or more, and that is the setup. Access tokens are stateless, so a revocation only bites once the access token runs out, unless `strictRevocation: true` buys you the same second for one database read per request. | `@tweaktags/auth-aws-cognito`, a pool, an app client that allows `ADMIN_USER_PASSWORD_AUTH`, and AWS credentials in the environment. One database read per request always, no refresh token rotation and so no stolen token detection, and nobody signs in until their row is linked. |
+| When to pick it | Unless the editors already have accounts somewhere, this one. Nothing else authenticates these people, so there is nothing to defer to. | The editors already live in a pool you run, usually the same one your own application uses. One password each, and disabling it in one place closes the editor too. |
+
+Either way, **roles live in the TweakTags users table**, and the rules under
+[Managing users](#managing-users) hold. The cookie, csrf and `tokenStorage` settings are TweakTags'
+own as well, so they behave the same whoever checked the password.
+
+### The built-in provider
+
+This is what [Step 4](#step-4-create-the-config-file) sets up, and there is nothing to install.
+`migrate` makes the users table and `create-superuser` puts the first person in it. The only value
+you supply is the secret the tokens are signed with. Keep it out of the repository, and treat
+changing it as signing everybody out.
+
+```ts
+auth: {
+  provider: 'jwt',
+  jwtSecret: process.env.TWEAKTAGS_JWT_SECRET, //16 characters or more
+  accessTtlSeconds: 60 * 15,        //15 minutes
+  refreshTtlSeconds: 60 * 60 * 24 * 7, //7 days
+  tokenStorage: 'cookie',       //or 'header' for a separate origin app
+  csrfProtection: true,
+  strictRevocation: true,       //reject access tokens the moment a session is revoked
+}
+```
+
+What the rotation and the revocation actually do, step by step, is under
+[Sessions and security](#sessions-and-security).
+
+### AWS Cognito
+
+If the people who edit your site already have logins in an **AWS Cognito user pool**, TweakTags can
+check passwords there instead, so they sign in to the editor with the account they already have.
+
+```sh
+npm install @tweaktags/auth-aws-cognito
+```
+
+#### Versions
+
+This is the one package in TweakTags that needs **Node 20 or newer**, and the floor is the AWS
+SDK's rather than ours: `@aws-sdk/client-cognito-identity-provider` declares `node >= 20.0.0`.
+Everything else in TweakTags still runs on Node 16.
+
+| Thing | Version | Notes |
+| --- | --- | --- |
+| **Node** | 20 or newer | For this package only. Node 16 is still the floor everywhere else in TweakTags |
+| **`@aws-sdk/client-cognito-identity-provider`** | 3.600.0 or newer | An ordinary dependency of `@tweaktags/auth-aws-cognito`, so it is installed for you |
+| **`aws-jwt-verify`** | 4.0.1 or newer | Verifies the pool's tokens against its JWKS. Also installed for you |
+| **AWS Cognito itself** | Nothing to match | A managed service, so the thing you pin is the SDK, not the service |
+
+**There is no minimum AWS Cognito version**, and that is the answer rather than something left out.
+Cognito is managed by AWS, who run one version of it for everybody, so what you pin is the SDK. The
+API these calls speak is the Cognito Identity Provider API, `2016-04-18`, which is the version the
+SDK client targets.
+
+What the pool itself has to allow is a separate question, and it is the next section.
+
+#### Before you configure anything
+
+- **The app client must allow the `ADMIN_USER_PASSWORD_AUTH` flow.** The password is checked on your
+  server, not in the browser, so that is the flow TweakTags signs in with. It is off by default on a
+  new app client.
+- **AWS credentials come from the environment, not from the config file.** The SDK finds them the
+  normal way, from an instance role, a profile, or the usual environment variables, which is the same
+  choice `@tweaktags/storage-s3` makes. They need the admin user pool actions: `AdminInitiateAuth`,
+  `AdminGetUser`, `AdminCreateUser`, `AdminSetUserPassword` and `AdminUserGlobalSignOut`.
+- **Nothing in the pool may ask the user a question.** TweakTags answers no challenges. A sign-in
+  that comes back with one, MFA or `NEW_PASSWORD_REQUIRED`, fails naming it, and that account cannot
+  be used until it is cleared in Cognito. A pool with MFA enforced cannot be used at all.
+- **A client secret is optional.** Only set `clientSecret` if the app client was created with one.
+
+#### The config
+
+```ts
+export default defineConfig({
+  //...the rest of your config
+
+  auth: {
+    provider: 'aws-cognito',
+    awsCognito: {
+      region: 'us-east-1',
+      userPoolId: 'us-east-1_AbCdEfGhI',
+      clientId: process.env.COGNITO_CLIENT_ID,
+      //Only if the app client has one.
+      clientSecret: process.env.COGNITO_CLIENT_SECRET,
+    },
+    //The cookie, csrf and token storage settings are shared with the jwt provider.
+    cookieSecure: true,
+  },
+});
+```
+
+There is no `jwtSecret` here, and the type will not let you add one. `auth` is a union, so a config
+names one provider and gets that provider's fields.
+
+Then tell the client which provider the server uses, with `authProvider="aws-cognito"` on
+`<TweakTagsProvider>`, or `TweakTags.init({ authProvider: 'aws-cognito' })` without a framework. That is
+presentation only: it changes what the **Add a user** form offers, and the server enforces every rule
+whatever the client says.
+
+#### Being in the pool is not access to the editor
+
+A user can only sign in once their TweakTags row is **linked** to their AWS Cognito `sub`. This is the
+part worth reading twice, because the pool is usually shared with your own application, and everybody
+in it having an editor account would be a nasty surprise.
+
+Somebody who is in the pool but not linked gets exactly the same **"The email or password is
+incorrect"** message as somebody typing the wrong password, so the login form cannot be used to work
+out who has access. It is also what a missed link looks like, which is why it is worth doing first.
+
+On a fresh install the command line does both halves at once. `create-superuser` makes the account in
+the pool, or links the one already there when the address exists, and writes the link on the row it
+creates:
+
+```sh
+npx tweaktags migrate
+npx tweaktags create-superuser --email you@example.com --password choose-a-strong-password
+```
+
+When the TweakTags row already exists with no link, which is what moving an existing install from the
+jwt provider to Cognito looks like, link it by hand:
+
+```sh
+npx tweaktags link-user --email you@example.com --external-id <their aws cognito sub>
+```
+
+That is the bootstrap, and the only way out of it: nobody can sign in until they are linked, and
+nobody can link somebody from the panel until they have signed in. The `sub` is the user's id in the
+pool, shown on their page in the AWS console, and `--sub` is accepted as a spelling of the same flag.
+The id is checked against the pool before it is written, so a typo fails there rather than at the next
+sign in. An unlinked row cannot have its password changed either, from the panel or the command line,
+so linking is the whole of the migration.
+
+#### Create a new user, or link an existing account
+
+With AWS Cognito configured, the **Add a user** form in the panel and the edit bar offers two things:
+
+- **Create a new user.** Email, password and role. The account is made in the pool with the
+  invitation suppressed and the password set as permanent, so there is no `FORCE_CHANGE_PASSWORD`
+  challenge for the login form to answer.
+- **Link an existing account.** Email and the Cognito `sub`, no password. For somebody who already
+  has a login.
+
+Adding a user whose email is **already in the pool** links that account rather than failing, and the
+panel says so with a notice. **Their existing password is left untouched**, because on a shared pool
+it is their live login for another application, not yours to reset.
+
+### What changes when you switch
+
+| | |
+| --- | --- |
+| Roles | Still in the TweakTags users table. AWS Cognito groups are never read or written, so every request costs one database read to resolve the role. That is the same cost as `strictRevocation: true`, and here it is not optional: a Cognito token carries only its own id. |
+| Deleting a TweakTags user | Leaves the Cognito account alone, and signs them out of nothing. Losing the CMS must not delete, or log out, the login your main application depends on. What shuts them out here is that `verify` needs a linked row and the row is gone. |
+| Changing your own email | Changes the TweakTags row only. The link is on the `sub`, which never changes. |
+| Ending sessions | A role change signs nobody out, and needs to sign nobody out: the role is in the TweakTags table and is read on every request, so a demotion bites at once. A password reset does sign them out, pool wide, because their password changed for every application the pool backs. That is all or nothing, so somebody changing their own password is signed out here too and has to sign back in. |
+| `accessTtlSeconds` and `refreshTtlSeconds` | Stop deciding how long a token lasts, which is the app client's setting now, but still decide how long the cookie holding it is kept. Match them to the app client or a cookie expires while its token is still good. |
+| Refresh tokens | Cognito does not rotate them, so the stolen token reuse detection described under [Sessions and security](#sessions-and-security) has no equivalent here. It is a real trade. |
+| `auth.strictRevocation` | Does nothing. Cognito already revokes at the source. |
+| `npx tweaktags update-password` | Sets the password in Cognito for a linked user, rather than writing a hash into a column nobody reads. |
+
+Full setup notes live in the
+[`@tweaktags/auth-aws-cognito` readme](https://github.com/scarlettiron/tweaktags/blob/main/packages/auth-aws-cognito/README.md).
+
 ## Databases
 
 TweakTags supports Postgres, MySQL, MariaDB, and SQLite. Postgres comes built in. For the others,
@@ -632,11 +811,12 @@ These are the settings you can put in `tweaktags.config.ts`.
 | `database.host` and `database.database` | yes if no string | The separate parts, if you do not use a connection string. |
 | `database.filename`       | sqlite only | The path to the sqlite database file.                          |
 | `database.pool`           | no       | Connection pool tuning for Postgres, MySQL, and MariaDB: `max`, `min`, `idleTimeoutMillis`, `connectionTimeoutMillis`. Leave it out for the driver defaults. Matters on serverless, see [Serverless and connection pools](#serverless-and-connection-pools). |
-| `auth.provider`           | yes      | The login type. Use `'jwt'`.                                      |
-| `auth.jwtSecret`          | yes      | A secret string of at least 16 characters that secures logins.   |
+| `auth.provider`           | yes      | The login type: `'jwt'` (built in) or `'aws-cognito'`. See [Authentication](#authentication). |
+| `auth.jwtSecret`          | jwt only | A secret string of at least 16 characters that secures logins.   |
+| `auth.awsCognito`         | aws-cognito only | The AWS Cognito user pool: `region`, `userPoolId`, `clientId`, and `clientSecret` if the app client was made with one. Needs `@tweaktags/auth-aws-cognito`. |
 | `auth.accessTtlSeconds`   | no       | How long the short access token lasts. Defaults to 15 minutes.   |
 | `auth.refreshTtlSeconds`  | no       | How long the refresh token lasts. Defaults to 7 days. When it expires the user is signed out. |
-| `auth.strictRevocation`   | no       | When true, every request checks the session is still active, so logout revokes access at once. Costs one database read per request. Defaults to false. |
+| `auth.strictRevocation`   | no       | jwt only. When true, every request checks the session is still active, so logout revokes access at once. Costs one database read per request. Defaults to false. Ignored under AWS Cognito, which reads the row on every request anyway. |
 | `auth.tokenStorage`       | no       | `'cookie'` (default, a secure httpOnly cookie) or `'header'` (token in the browser, for a separate origin app). |
 | `auth.cookieSecure`       | no       | Whether cookies are marked Secure (https only). Defaults to true. Set false for local http dev. |
 | `auth.cookieSameSite`     | no       | `'lax'` (default), `'strict'`, or `'none'`. Use `'none'` with a separate origin app. |
@@ -759,6 +939,10 @@ lived **refresh token** quietly gets a new access token when it expires. When th
 itself expires, the user is signed out and simply logs back in. Both lifetimes are set with
 `auth.accessTtlSeconds` and `auth.refreshTtlSeconds`.
 
+The rotation and revocation below are the `jwt` provider's. Under AWS Cognito the pool issues the
+tokens and the differences are listed under [Authentication](#authentication); the cookie and csrf
+parts of this section apply to both.
+
 ### Token blocking and revocation, step by step
 
 This is how TweakTags stops old or stolen tokens from being used.
@@ -844,6 +1028,7 @@ Run these from the root of your app.
 | `npx tweaktags create-superuser --email EMAIL --password PASS` | Creates a superuser who can make tags.  |
 | `npx tweaktags create-user --email EMAIL --password PASS`      | Creates a regular editor who can only change existing content. |
 | `npx tweaktags update-password --email EMAIL --password PASS`  | Sets a new password for an existing user. |
+| `npx tweaktags link-user --email EMAIL --external-id SUB`      | Links a user to their account at an identity provider, which is the AWS Cognito `sub`. |
 | `npx tweaktags list-tags`                                      | Lists every tag in the database.        |
 | `npx tweaktags list-users`                                     | Lists every user and their role.        |
 | `npx tweaktags help`                                           | Shows the available commands.          |
@@ -945,6 +1130,15 @@ disagree, and explains this in the log if the connection then fails.
 
 **The secret is too short error.**
 `TWEAKTAGS_JWT_SECRET` must be at least 16 characters. Make a longer one with the command in Step 3.
+
+**`The aws-cognito auth config needs an "awsCognito" section`.**
+Your `auth` block says `provider: 'aws-cognito'` but has no `awsCognito` block beside it. The key
+is `awsCognito`, not `cognito`, and it holds `region`, `userPoolId`, `clientId`, and
+`clientSecret` if the app client was created with one. See [AWS Cognito](#aws-cognito).
+
+**`@tweaktags/auth-aws-cognito` refuses to install on an unsupported engine.**
+It needs Node 20 or newer, unlike the rest of TweakTags, which runs on Node 16. That floor is the
+AWS SDK's: `@aws-sdk/client-cognito-identity-provider` declares `node >= 20.0.0`.
 
 **My content does not save.**
 Open your browser developer tools and look at the Network tab while you edit. The request to
@@ -1148,6 +1342,7 @@ of `init`.
 | `@tweaktags/db-mariadb` | Server   | A thin alias that installs and re-exports `@tweaktags/db-mysql` for MariaDB |
 | `@tweaktags/db-sqlite`  | Server   | The SQLite database adapter and migrations                          |
 | `@tweaktags/auth-jwt`   | Server   | Email and password login that issues secure tokens                 |
+| `@tweaktags/auth-aws-cognito` | Server | Optional AWS Cognito login, for editors who already have accounts in an AWS Cognito user pool. Needs Node 20 or newer |
 | `@tweaktags/storage-s3` | Server   | Optional media uploads to S3 or any S3 compatible store, using presigned uploads |
 | `@tweaktags/cli`        | Terminal | The `tweaktags` command for migrations and creating users             |
 | `@tweaktags/browser`    | Browser  | The framework agnostic engine that crawls the page, loads content, and runs editing. Both the React and vanilla UIs sit on top of it |

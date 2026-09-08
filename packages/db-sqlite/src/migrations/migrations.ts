@@ -96,4 +96,18 @@ export const MIGRATIONS: Migration[] = [
         ON "${REFRESH_TABLE}" (user_id);
     `,
   },
+  {
+    //Links a user to an account at an identity provider. The column is nullable
+    //because a user who signs in with a password has no provider account, and a
+    //SQLite unique index allows repeated NULLs, which is what lets linked and
+    //unlinked users sit in the same table under the same index.
+    //SQLite has no IF NOT EXISTS on ADD COLUMN, which is fine because a
+    //migration only ever runs once.
+    id: '0007_add_user_external_id',
+    sql: `
+      ALTER TABLE "${AUTH_TABLE}" ADD COLUMN external_id TEXT;
+      CREATE UNIQUE INDEX IF NOT EXISTS "__TweakTags__Users_External_Idx"
+        ON "${AUTH_TABLE}" (external_id);
+    `,
+  },
 ];

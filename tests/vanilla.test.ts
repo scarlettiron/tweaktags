@@ -100,3 +100,74 @@ describe('vanilla mountAdmin', () => {
     instance.destroy();
   });
 });
+
+//The bar used to be draggable only by a ten pixel dotted grip, which is a target
+//most people never find. These pin the fix: the whole bar drags, except where a
+//drag would swallow a click.
+describe('dragging the edit bar', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    document.body.innerHTML = '';
+  });
+
+  const signIn = async (): Promise<HTMLElement> => {
+    installMatchMedia();
+    document.body.innerHTML = '<h1 data-tweaktags-title>hi</h1>';
+    vi.stubGlobal('fetch', makeFetch(seed));
+
+    const instance = init({ apiBasePath: '/api/tweaktags' });
+    await flush();
+    await instance.engine.login('admin@example.com', 'password');
+    await flush();
+
+    const bar = document.querySelector('.tt-bar');
+
+    if (!(bar instanceof HTMLElement)) {
+      throw new Error('the edit bar did not mount');
+    }
+
+    return bar;
+  };
+
+  const drag = (from: HTMLElement, target: Element, toX: number, toY: number): void => {
+    const options = { bubbles: true, pointerId: 1, clientX: 10, clientY: 10 };
+
+    target.dispatchEvent(new PointerEvent('pointerdown', options));
+    from.dispatchEvent(new PointerEvent('pointermove', { ...options, clientX: toX, clientY: toY }));
+    from.dispatchEvent(new PointerEvent('pointerup', { ...options }));
+  };
+
+  it('moves when dragged by the bar itself, not only by the grip', async () => {
+    const bar = await signIn();
+
+    drag(bar, bar, 400, 300);
+
+    expect(bar.style.left).not.toBe('');
+    expect(bar.style.top).not.toBe('');
+  });
+
+  it('still moves when dragged by the grip', async () => {
+    const bar = await signIn();
+    const grip = bar.querySelector('.tt-grip');
+
+    expect(grip).not.toBeNull();
+
+    drag(bar, grip as Element, 250, 180);
+
+    expect(bar.style.left).not.toBe('');
+  });
+
+  //A drag that started on a button would swallow the click, so buttons are left
+  //alone and the bar stays where it is.
+  it('does not move when the drag starts on a button', async () => {
+    const bar = await signIn();
+    const button = bar.querySelector('button');
+
+    expect(button).not.toBeNull();
+
+    drag(bar, button as Element, 400, 300);
+
+    expect(bar.style.left).toBe('');
+    expect(bar.style.top).toBe('');
+  });
+});

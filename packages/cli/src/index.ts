@@ -10,5 +10,6 @@ export { runMigrate } from './commands/migrate.js';
 export { runCreateSuperuser } from './commands/create-superuser.js';
 export { runCreateUser } from './commands/create-user.js';
 export { runUpdatePassword } from './commands/update-password.js';
+export { runLinkUser } from './commands/link-user.js';
 export { runListTags } from './commands/list-tags.js';
 export { runListUsers } from './commands/list-users.js';

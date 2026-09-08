@@ -1,6 +1,6 @@
 {
   "name": "@tweaktags/browser",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "Browser engine for TweakTags, the self-hosted inline CMS and visual editor for Next.js, React, and plain HTML. Page crawler, session, and in place editing runtime.",
   "keywords": [
     "tweaktags",

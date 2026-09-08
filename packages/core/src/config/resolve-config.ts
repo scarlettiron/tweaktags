@@ -82,8 +82,8 @@ export const resolveConfig = (input: TweakTagsUserConfig): TweakTagsConfig => {
     }
   }
 
-  if (!input.auth || (input.auth.provider !== 'jwt' && input.auth.provider !== 'cognito')) {
-    throw badRequest('The config needs an auth section with provider set to "jwt" or "cognito"');
+  if (!input.auth || (input.auth.provider !== 'jwt' && input.auth.provider !== 'aws-cognito')) {
+    throw badRequest('The config needs an auth section with provider set to "jwt" or "aws-cognito"');
   }
 
   if (input.auth.provider === 'jwt') {
@@ -93,24 +93,24 @@ export const resolveConfig = (input: TweakTagsUserConfig): TweakTagsConfig => {
   } else {
     //Caught here rather than at the first sign in, where a missing pool id comes
     //back from AWS as a parameter validation error that names nothing useful.
-    if (!input.auth.cognito) {
-      throw badRequest('The cognito auth config needs a "cognito" section');
+    if (!input.auth.awsCognito) {
+      throw badRequest('The aws-cognito auth config needs an "awsCognito" section');
     }
 
     const fields = ['region', 'userPoolId', 'clientId'] as const;
 
     for (const field of fields) {
-      const value = input.auth.cognito[field];
+      const value = input.auth.awsCognito[field];
 
       if (typeof value !== 'string' || value.trim() === '') {
-        throw badRequest(`The cognito auth config needs a "${field}"`);
+        throw badRequest(`The aws-cognito auth config needs a "${field}"`);
       }
     }
 
-    const { clientSecret } = input.auth.cognito;
+    const { clientSecret } = input.auth.awsCognito;
 
     if (clientSecret !== undefined && (typeof clientSecret !== 'string' || clientSecret === '')) {
-      throw badRequest('The cognito auth "clientSecret" must be a non empty string when set');
+      throw badRequest('The aws-cognito auth "clientSecret" must be a non empty string when set');
     }
   }
 
@@ -142,7 +142,7 @@ export const resolveConfig = (input: TweakTagsUserConfig): TweakTagsConfig => {
   const auth: ResolvedAuthConfig =
     input.auth.provider === 'jwt'
       ? { ...sharedAuth, provider: 'jwt', jwtSecret: input.auth.jwtSecret }
-      : { ...sharedAuth, provider: 'cognito', cognito: input.auth.cognito };
+      : { ...sharedAuth, provider: 'aws-cognito', awsCognito: input.auth.awsCognito };
 
   return {
     mode: input.mode ?? DEFAULT_MODE,

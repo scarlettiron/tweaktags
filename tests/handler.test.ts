@@ -135,8 +135,26 @@ class FakeDb implements DbAdapter {
   //exists, and whether the caller's own row still says what their token says.
   //The seeded ids match the ones fakeAuth.verify hands out for its two tokens.
   public users = new Map<string, StoredUser>([
-    ['1', { id: '1', email: 'super@example.com', role: 'superuser', passwordHash: 'hash:secret' }],
-    ['2', { id: '2', email: 'editor@example.com', role: 'editor', passwordHash: 'hash:secret' }],
+        [
+      '1',
+      {
+        id: '1',
+        email: 'super@example.com',
+        role: 'superuser',
+        passwordHash: 'hash:secret',
+        externalId: null,
+      },
+    ],
+    [
+      '2',
+      {
+        id: '2',
+        email: 'editor@example.com',
+        role: 'editor',
+        passwordHash: 'hash:secret',
+        externalId: null,
+      },
+    ],
   ]);
 
   private nextUserId = 3;
@@ -163,6 +181,7 @@ class FakeDb implements DbAdapter {
       email: input.email,
       role: input.role,
       passwordHash: input.passwordHash,
+      externalId: input.externalId ?? null,
     };
 
     this.users.set(user.id, user);
@@ -228,6 +247,32 @@ class FakeDb implements DbAdapter {
     return this.users.delete(id);
   }
 
+  async findUserByExternalId(externalId: string): Promise<StoredUser | null> {
+    return [...this.users.values()].find((user) => user.externalId === externalId) ?? null;
+  }
+
+  async setUserExternalId(id: string, externalId: string | null): Promise<boolean> {
+    const user = this.users.get(id);
+
+    if (!user) {
+      return false;
+    }
+
+    const taken =
+      externalId !== null &&
+      [...this.users.values()].some(
+        (other) => other.externalId === externalId && other.id !== id,
+      );
+
+    if (taken) {
+      throw conflict('That identity provider account is already linked to another user');
+    }
+
+    this.users.set(id, { ...user, externalId });
+
+    return true;
+  }
+
   async deleteRefreshTokensForUser(userId: string, exceptFamilyId?: string): Promise<void> {
     this.revoked.push({ userId, exceptFamilyId });
   }
@@ -251,6 +296,7 @@ class FakeDb implements DbAdapter {
 
 //A logout spy we can assert against.
 const logoutSpy = vi.fn(async (_token: string) => {});
+const endSessionsSpy = vi.fn();
 
 //A fake auth adapter that maps known tokens to actors.
 const fakeAuth: AuthAdapter = {
@@ -295,6 +341,50 @@ const fakeAuth: AuthAdapter = {
   async verifyPassword(email: string, password: string) {
     return password === 'secret' && email.includes('@');
   },
+  //The real jwt adapter delegates this straight to the refresh token store, so
+  //the fake records it the same way the store used to.
+  async endSessions(userId: string, exceptFamilyId?: string) {
+    endSessionsSpy(userId, exceptFamilyId);
+  },
+};
+
+//The same fake auth, plus a people directory. It stands in for any provider that
+//keeps logins outside TweakTags, which is what the handler actually branches on:
+//it never learns that Cognito exists.
+const pool = new Map<string, { externalId: string; email: string }>([
+  ['taken@example.com', { externalId: 'sub-taken', email: 'taken@example.com' }],
+]);
+
+const setPasswordSpy = vi.fn();
+
+const directoryAuth: AuthAdapter = {
+  ...fakeAuth,
+  directory: {
+    //Takes no password: an account that already exists keeps the one it has,
+    //and a new one here is only ever made by the fake below.
+    async createOrLink(email: string) {
+      const existing = pool.get(email);
+
+      //The case the whole feature exists for. An address already in the pool is
+      //linked rather than created, and its password is deliberately untouched.
+      if (existing) {
+        return { ...existing, alreadyExisted: true };
+      }
+
+      const made = { externalId: `sub-${pool.size + 1}`, email };
+      pool.set(email, made);
+
+      return { ...made, alreadyExisted: false };
+    },
+    async findByExternalId(externalId: string) {
+      const found = [...pool.values()].find((entry) => entry.externalId === externalId);
+
+      return found ? { ...found, alreadyExisted: true } : null;
+    },
+    async setPassword(externalId: string, password: string) {
+      setPasswordSpy(externalId, password);
+    },
+  },
 };
 
 //A fake storage adapter that echoes the key back in the urls, so tests can check
@@ -317,6 +407,7 @@ describe('request handler', () => {
     db = new FakeDb();
     handle = createHandler({ db, auth: fakeAuth, config: {} as TweakTagsConfig });
     logoutSpy.mockClear();
+    endSessionsSpy.mockClear();
   });
 
   describe('reading content', () => {
@@ -890,7 +981,7 @@ describe('request handler', () => {
 
       expect(response.status).toBe(200);
       expect(db.users.get('2')?.role).toBe('superuser');
-      expect(db.revoked).toEqual([{ userId: '2', exceptFamilyId: undefined }]);
+      expect(endSessionsSpy).toHaveBeenCalledWith('2', undefined);
     });
 
     it('reports a missing user when changing a role', async () => {
@@ -912,7 +1003,7 @@ describe('request handler', () => {
 
       expect(response.status).toBe(200);
       expect(db.users.get('2')?.passwordHash).toBe('hash:brand-new-one');
-      expect(db.revoked).toEqual([{ userId: '2', exceptFamilyId: undefined }]);
+      expect(endSessionsSpy).toHaveBeenCalledWith('2', undefined);
     });
 
     it('refuses to delete your own account', async () => {
@@ -961,7 +1052,7 @@ describe('request handler', () => {
       expect(deleted.status).toBe(200);
       expect(deleted.body).toEqual({ ok: true, userId });
       expect(db.users.has(userId)).toBe(false);
-      expect(db.revoked).toContainEqual({ userId, exceptFamilyId: undefined });
+      expect(endSessionsSpy).toHaveBeenCalledWith(userId, undefined);
     });
 
     it('reports a missing user when deleting', async () => {
@@ -990,7 +1081,7 @@ describe('request handler', () => {
         role: 'editor',
       });
       expect(db.users.get('2')?.email).toBe('new-editor@example.com');
-      expect(db.revoked).toEqual([]);
+      expect(endSessionsSpy).not.toHaveBeenCalled();
     });
 
     //403 rather than 401, because the api client replays a 401 after refreshing
@@ -1025,7 +1116,7 @@ describe('request handler', () => {
 
       expect(response.status).toBe(200);
       expect(db.users.get('2')?.passwordHash).toBe('hash:password1');
-      expect(db.revoked).toEqual([{ userId: '2', exceptFamilyId: 'editor-family' }]);
+      expect(endSessionsSpy).toHaveBeenCalledWith('2', 'editor-family');
     });
 
     it('refuses a password change with the wrong current password', async () => {
@@ -1051,6 +1142,132 @@ describe('request handler', () => {
 
       expect(email.status).toBe(401);
       expect(password.status).toBe(401);
+    });
+  });
+
+  //Everything here goes through auth.directory, which is the seam that keeps the
+  //handler from knowing which identity provider is underneath.
+  describe('managing users with an identity provider', () => {
+    let withDirectory: TweakTagsHandler;
+
+    beforeEach(() => {
+      pool.clear();
+      pool.set('taken@example.com', { externalId: 'sub-taken', email: 'taken@example.com' });
+      setPasswordSpy.mockClear();
+      withDirectory = createHandler({
+        db,
+        auth: directoryAuth,
+        config: {} as TweakTagsConfig,
+      });
+    });
+
+    it('creates a new account at the provider and links it', async () => {
+      const response = await withDirectory({
+        action: ACTIONS.CREATE_USER,
+        payload: { email: 'new@example.com', password: 'password1', role: 'editor' },
+        authToken: 'super',
+      });
+
+      expect(response.status).toBe(201);
+      expect(response.body.notice).toBeUndefined();
+
+      const created = response.body.user as AuthUser;
+
+      expect(db.users.get(created.id)?.externalId).toBe('sub-2');
+      //No password of ours is kept for somebody whose login lives elsewhere.
+      expect(db.users.get(created.id)?.passwordHash).toBe('');
+    });
+
+    //The headline case: adding somebody who already has an account in a pool
+    //shared with another application.
+    it('links an address the provider already knows, and says so', async () => {
+      const response = await withDirectory({
+        action: ACTIONS.CREATE_USER,
+        payload: { email: 'taken@example.com', password: 'password1', role: 'editor' },
+        authToken: 'super',
+      });
+
+      expect(response.status).toBe(201);
+      expect(String(response.body.notice)).toContain('already had an account');
+      expect(String(response.body.notice)).toContain('existing password still works');
+
+      const created = response.body.user as AuthUser;
+
+      expect(db.users.get(created.id)?.externalId).toBe('sub-taken');
+    });
+
+    it('links an account named by its provider id, with no password at all', async () => {
+      const response = await withDirectory({
+        action: ACTIONS.CREATE_USER,
+        payload: { email: 'linked@example.com', role: 'editor', externalId: 'sub-taken' },
+        authToken: 'super',
+      });
+
+      expect(response.status).toBe(201);
+
+      const created = response.body.user as AuthUser;
+
+      expect(db.users.get(created.id)?.externalId).toBe('sub-taken');
+      //No notice here. Somebody who typed an id asked to link, so telling them
+      //it was linked is noise. The notice is for the surprising case only.
+      expect(response.body.notice).toBeUndefined();
+    });
+
+    it('reports an id the provider does not have', async () => {
+      const response = await withDirectory({
+        action: ACTIONS.CREATE_USER,
+        payload: { email: 'nobody@example.com', role: 'editor', externalId: 'sub-nobody' },
+        authToken: 'super',
+      });
+
+      expect(response.status).toBe(404);
+    });
+
+    //Writing a hash to our own table would change nothing and still look like it
+    //had worked, which is the failure worth being loud about.
+    it('resets a password at the provider rather than in our table', async () => {
+      db.users.set('2', {
+        id: '2',
+        email: 'editor@example.com',
+        role: 'editor',
+        passwordHash: '',
+        externalId: 'sub-taken',
+      });
+
+      const response = await withDirectory({
+        action: ACTIONS.UPDATE_USER_PASSWORD,
+        payload: { userId: '2', password: 'brand-new-one' },
+        authToken: 'super',
+      });
+
+      expect(response.status).toBe(200);
+      expect(setPasswordSpy).toHaveBeenCalledWith('sub-taken', 'brand-new-one');
+      expect(db.users.get('2')?.passwordHash).toBe('');
+    });
+
+    it('refuses a password change for a user nobody linked', async () => {
+      const response = await withDirectory({
+        action: ACTIONS.UPDATE_USER_PASSWORD,
+        payload: { userId: '2', password: 'brand-new-one' },
+        authToken: 'super',
+      });
+
+      expect(response.status).toBe(409);
+      expect(setPasswordSpy).not.toHaveBeenCalled();
+    });
+
+    //Deleting somebody here must not delete their login for whatever else the
+    //pool serves, so the directory is never asked to remove anything.
+    it('deletes the TweakTags user without touching the provider', async () => {
+      const response = await withDirectory({
+        action: ACTIONS.DELETE_USER,
+        payload: { userId: '2' },
+        authToken: 'super',
+      });
+
+      expect(response.status).toBe(200);
+      expect(db.users.has('2')).toBe(false);
+      expect(pool.has('taken@example.com')).toBe(true);
     });
   });
 });

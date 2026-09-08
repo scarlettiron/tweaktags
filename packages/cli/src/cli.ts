@@ -9,6 +9,7 @@ import { runCreateSuperuser } from './commands/create-superuser.js';
 import { runCreateUser } from './commands/create-user.js';
 import { runMigrate } from './commands/migrate.js';
 import { runUpdatePassword } from './commands/update-password.js';
+import { runLinkUser } from './commands/link-user.js';
 import { runListTags } from './commands/list-tags.js';
 import { runListUsers } from './commands/list-users.js';
 import { parseFlags } from './utilities/args.js';
@@ -25,6 +26,7 @@ const printHelp = (): void => {
       '  tweaktags create-superuser --email you@example.com --password secret [--role superuser|editor] [--config path]',
       '  tweaktags create-user --email you@example.com --password secret [--config path]',
       '  tweaktags update-password --email you@example.com --password newsecret [--config path]',
+      '  tweaktags link-user --email you@example.com --external-id <cognito sub> [--config path]',
       '  tweaktags list-tags [--tenant name] [--config path]',
       '  tweaktags list-users [--config path]',
       '',
@@ -55,6 +57,9 @@ export const runCli = async (argv: string[]): Promise<number> => {
 
     case 'update-password':
       return runUpdatePassword(flags);
+
+    case 'link-user':
+      return runLinkUser(flags);
 
     case 'list-tags':
       return runListTags(flags);

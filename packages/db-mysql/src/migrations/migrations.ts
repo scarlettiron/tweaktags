@@ -89,4 +89,20 @@ export const MIGRATIONS: Migration[] = [
         ADD INDEX \`__TweakTags__Refresh_User_Idx\` (user_id);
     `,
   },
+  {
+    //Links a user to an account at an identity provider. The column is nullable
+    //because a user who signs in with a password has no provider account, and a
+    //MySQL unique key allows repeated NULLs, which is what lets linked and
+    //unlinked users sit in the same table under the same key.
+    //Written as one ALTER because the pool has no multi statement support, and
+    //without an IF NOT EXISTS because MySQL has none for a column or an index.
+    //A migration only ever runs once, so nothing here has to survive a rerun.
+    //The column is VARCHAR rather than TEXT because a unique key needs a length.
+    id: '0007_add_user_external_id',
+    sql: `
+      ALTER TABLE \`${AUTH_TABLE}\`
+        ADD COLUMN external_id VARCHAR(255) NULL,
+        ADD UNIQUE KEY \`__TweakTags__Users_External_Idx\` (external_id);
+    `,
+  },
 ];

@@ -1,6 +1,6 @@
 {
   "name": "@tweaktags/server",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "Node backend for TweakTags, the self-hosted inline CMS and visual editor for Next.js, React, and plain HTML. Mount it on any route, or run it standalone.",
   "keywords": [
     "tweaktags",
@@ -76,11 +76,15 @@
     "@tweaktags/db-postgres": "workspace:*"
   },
   "peerDependencies": {
+    "@tweaktags/auth-aws-cognito": "workspace:*",
     "@tweaktags/db-mysql": "workspace:*",
     "@tweaktags/db-sqlite": "workspace:*",
     "@tweaktags/storage-s3": "workspace:*"
   },
   "peerDependenciesMeta": {
+    "@tweaktags/auth-aws-cognito": {
+      "optional": true
+    },
     "@tweaktags/db-mysql": {
       "optional": true
     },

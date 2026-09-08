@@ -223,6 +223,32 @@ export const createHandler = (deps: HandlerDependencies): TweakTagsHandler => {
     return users.filter((user) => user.role === ROLES.SUPERUSER).length;
   };
 
+  //Sets somebody's password wherever their password actually lives. For an
+  //ordinary user that is the hash in our own table; for a user whose login
+  //belongs to an identity provider it is the provider, and writing a hash here
+  //would be worse than useless, because it would look like it had worked.
+  const setPasswordFor = async (user: StoredUser, password: string): Promise<void> => {
+    const directory = auth.directory;
+
+    if (directory && user.externalId) {
+      await directory.setPassword(user.externalId, password);
+
+      return;
+    }
+
+    //A linked user with no directory, or a directory user who was never linked,
+    //both mean the install changed underneath this row. Refuse rather than write
+    //a password to a place nobody will ever read it from.
+    if (directory || user.externalId) {
+      throw conflict(
+        `${user.email} is linked to an identity provider that is not configured, ` +
+          `so their password cannot be changed here.`,
+      );
+    }
+
+    await db.setUserPassword(user.id, await auth.hashPassword(password));
+  };
+
   const handleLogin = async (request: TweakTagsRequest): Promise<TweakTagsResponse> => {
     const email = requireString(request.payload, 'email');
     const password = requireString(request.payload, 'password');
@@ -408,19 +434,65 @@ export const createHandler = (deps: HandlerDependencies): TweakTagsHandler => {
     await requireSuperuser(request);
 
     const email = requireEmail(request.payload, 'email');
-    const password = requirePassword(request.payload, 'password');
     const role = requireRole(request.payload, 'role');
+    const directory = auth.directory;
 
-    //Hash and insert directly rather than going through auth.createUser, which
-    //hands back only an id and a role. The panel needs the whole user to add a
-    //row to its list, and the duplicate email conflict comes free from the
-    //database adapters.
-    const passwordHash = await auth.hashPassword(password);
-    const user = await db.createUser({ email, role, passwordHash });
+    //Without a directory the password lives here, so hash and insert. This goes
+    //straight to the database rather than through auth.createUser, which hands
+    //back only an id and a role: the panel needs the whole user to add a row to
+    //its list, and the duplicate email conflict comes free from the adapters.
+    if (!directory) {
+      const password = requirePassword(request.payload, 'password');
+      const passwordHash = await auth.hashPassword(password);
+      const user = await db.createUser({ email, role, passwordHash });
+
+      return {
+        status: 201,
+        body: { user: { id: user.id, email: user.email, role: user.role } },
+      };
+    }
+
+    //With one, the login belongs to the provider and there are two ways in:
+    //name an account that already exists, or make a new one.
+    const externalId = optionalString(request.payload, 'externalId');
+    const linked = externalId
+      ? await directory.findByExternalId(externalId)
+      : await directory.createOrLink(email, requirePassword(request.payload, 'password'));
+
+    if (!linked) {
+      throw notFound('That account could not be found at the identity provider');
+    }
+
+    //An empty hash rather than a fake one. It satisfies the not null column, and
+    //because bcrypt never matches against an empty string, a user whose password
+    //lives elsewhere can never be signed in by the password provider if an
+    //install is ever switched back to it.
+    const user = await db.createUser({
+      email,
+      role,
+      passwordHash: '',
+      externalId: linked.externalId,
+    });
 
     return {
       status: 201,
-      body: { user: { id: user.id, email: user.email, role: user.role } },
+      body: {
+        user: { id: user.id, email: user.email, role: user.role },
+        //A success message, which no other response carries. Named notice rather
+        //than message on purpose: message means a failure everywhere else, and
+        //the api client only ever reads it on a failed response.
+        //
+        //Only the surprise is worth saying out loud. Somebody who typed an id
+        //asked to link and already knows; somebody who filled in a password
+        //expected a new account and got a link, which is worth explaining.
+        ...(linked.alreadyExisted && !externalId
+          ? {
+              notice:
+                `${linked.email} already had an account with the identity provider, ` +
+                `so it was linked instead of created. Their existing password still works.`,
+            }
+          : {}),
+      },
     };
   };
 
@@ -457,7 +529,7 @@ export const createHandler = (deps: HandlerDependencies): TweakTagsHandler => {
 
     //A role lives inside the access token, so end their sessions and make them
     //sign in again rather than leave them holding the old one.
-    await db.deleteRefreshTokensForUser(userId);
+    await auth.endSessions(userId);
 
     return {
       status: 200,
@@ -478,10 +550,10 @@ export const createHandler = (deps: HandlerDependencies): TweakTagsHandler => {
       throw notFound('That user could not be found');
     }
 
-    await db.setUserPassword(userId, await auth.hashPassword(password));
+    await setPasswordFor(target, password);
 
     //A reset that left the old sessions signed in would not be a reset.
-    await db.deleteRefreshTokensForUser(userId);
+    await auth.endSessions(userId);
 
     return { status: 200, body: { ok: true } };
   };
@@ -512,7 +584,7 @@ export const createHandler = (deps: HandlerDependencies): TweakTagsHandler => {
     //already dead, because refreshing looks the user up and finds nobody. The
     //other order would sign somebody out for a delete that did not happen.
     await db.deleteUser(userId);
-    await db.deleteRefreshTokensForUser(userId);
+    await auth.endSessions(userId);
 
     return { status: 200, body: { ok: true, userId } };
   };
@@ -555,11 +627,13 @@ export const createHandler = (deps: HandlerDependencies): TweakTagsHandler => {
       throw forbidden('Your current password is not correct');
     }
 
-    await db.setUserPassword(user.id, await auth.hashPassword(password));
+    await setPasswordFor(user, password);
 
     //Signs out their other devices but not this one, so changing a password does
-    //not throw the person doing it back to the login screen.
-    await db.deleteRefreshTokensForUser(user.id, actor.familyId);
+    //not throw the person doing it back to the login screen. A provider that owns
+    //its own sessions may only be able to sign somebody out everywhere, in which
+    //case it ignores the spared family and says so in its own documentation.
+    await auth.endSessions(user.id, actor.familyId);
 
     return { status: 200, body: { ok: true } };
   };

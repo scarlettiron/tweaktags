@@ -23,6 +23,12 @@ import type {
 export interface UserStore {
   findUserByEmail(email: string): Promise<StoredUser | null>;
   findUserById(id: string): Promise<StoredUser | null>;
+
+  //Find the user linked to an identity provider account. Null when nobody is.
+  //This is on the hot path: a provider that issues its own tokens carries only
+  //its own id in them, so the role has to be read here on every request.
+  findUserByExternalId(externalId: string): Promise<StoredUser | null>;
+
   createUser(input: CreateUserInput): Promise<StoredUser>;
 
   //Change the stored password hash for the user with this email.
@@ -104,11 +110,6 @@ export interface DbAdapter extends UserStore, RefreshTokenStore {
   //Change one user's email. False when no user has that id, and throws a
   //conflict when somebody else already has that address.
   setUserEmail(id: string, email: string): Promise<boolean>;
-
-  //Find the user linked to an identity provider account. Null when nobody is.
-  //This is on the hot path: a provider that issues its own tokens carries only
-  //its own id in them, so the role has to be read here on every request.
-  findUserByExternalId(externalId: string): Promise<StoredUser | null>;
 
   //Link a user to an identity provider account, or pass null to unlink them.
   //False when no user has that id, and throws a conflict when that provider

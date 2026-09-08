@@ -43,6 +43,21 @@
     'hero-title': { tag: 'hero-title', type: 'plain', body: 'Welcome to TweakTags', mediaUrl: null, updatedAt: null, updatedBy: null },
     'hero-subtitle': { tag: 'hero-subtitle', type: 'rich', body: 'Edit <b>me</b> right on the page.', mediaUrl: null, updatedAt: null, updatedBy: null },
     'hero-banner': { tag: 'hero-banner', type: 'media', body: '', mediaUrl: 'https://picsum.photos/seed/tweaktags/1200/320', updatedAt: null, updatedBy: null },
+
+    //The example component. Twelve tags across three cards, because a real site
+    //is mostly components and each line in one is edited on its own.
+    'card-one-eyebrow': { tag: 'card-one-eyebrow', type: 'plain', body: 'Most popular', mediaUrl: null, updatedAt: null, updatedBy: null },
+    'card-one-title': { tag: 'card-one-title', type: 'plain', body: 'White Oak', mediaUrl: null, updatedAt: null, updatedBy: null },
+    'card-one-body': { tag: 'card-one-body', type: 'plain', body: 'Rift and quartersawn, kiln dried to 7 percent. Sold by the board foot.', mediaUrl: null, updatedAt: null, updatedBy: null },
+    'card-one-price': { tag: 'card-one-price', type: 'plain', body: '$14.50 / bf', mediaUrl: null, updatedAt: null, updatedBy: null },
+    'card-two-eyebrow': { tag: 'card-two-eyebrow', type: 'plain', body: 'New this month', mediaUrl: null, updatedAt: null, updatedBy: null },
+    'card-two-title': { tag: 'card-two-title', type: 'plain', body: 'Black Walnut', mediaUrl: null, updatedAt: null, updatedBy: null },
+    'card-two-body': { tag: 'card-two-body', type: 'plain', body: 'Wide stock from our own yard, steamed or unsteamed. Ask for the figured lift.', mediaUrl: null, updatedAt: null, updatedBy: null },
+    'card-two-price': { tag: 'card-two-price', type: 'plain', body: '$22.00 / bf', mediaUrl: null, updatedAt: null, updatedBy: null },
+    'card-three-eyebrow': { tag: 'card-three-eyebrow', type: 'plain', body: 'Clearance', mediaUrl: null, updatedAt: null, updatedBy: null },
+    'card-three-title': { tag: 'card-three-title', type: 'plain', body: 'Poplar Shorts', mediaUrl: null, updatedAt: null, updatedBy: null },
+    'card-three-body': { tag: 'card-three-body', type: 'plain', body: 'Under four feet, paint grade, perfect for jigs and shop furniture.', mediaUrl: null, updatedAt: null, updatedBy: null },
+    'card-three-price': { tag: 'card-three-price', type: 'plain', body: '$3.25 / bf', mediaUrl: null, updatedAt: null, updatedBy: null },
   };
 
   var session = null;

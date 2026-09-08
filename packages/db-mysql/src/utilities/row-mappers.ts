@@ -27,6 +27,7 @@ interface UserRow {
   email: string;
   password_hash: string;
   role: string;
+  external_id: string | null;
 }
 
 //Turns a database timestamp, which may be a Date or a string, into an iso string.
@@ -54,4 +55,7 @@ export const mapUserRow = (row: UserRow): StoredUser => ({
   email: row.email,
   passwordHash: row.password_hash,
   role: row.role === 'superuser' ? 'superuser' : 'editor',
+  //A user with no linked provider account has to read back as null rather than
+  //as undefined, which is what a missing column would otherwise give.
+  externalId: row.external_id == null ? null : String(row.external_id),
 });

@@ -88,4 +88,17 @@ export const MIGRATIONS: Migration[] = [
         ON "${REFRESH_TABLE}" (user_id);
     `,
   },
+  {
+    //Links a user to an account at an identity provider. The column is nullable
+    //because a user who signs in with a password has no provider account, and a
+    //Postgres unique index allows repeated NULLs, which is what lets linked and
+    //unlinked users sit in the same table under the same index.
+    id: '0007_add_user_external_id',
+    sql: `
+      ALTER TABLE "${AUTH_TABLE}"
+        ADD COLUMN IF NOT EXISTS external_id TEXT;
+      CREATE UNIQUE INDEX IF NOT EXISTS "__TweakTags__Users_External_Idx"
+        ON "${AUTH_TABLE}" (external_id);
+    `,
+  },
 ];

@@ -34,6 +34,27 @@ export const runUpdatePassword = async (flags: Record<string, string>): Promise<
       return 1;
     }
 
+    //When the login lives at an identity provider, writing a hash to our own
+    //table would change nothing and still print success, so the password goes
+    //where it is actually checked.
+    const directory = server.auth.directory;
+
+    if (directory && user.externalId) {
+      await directory.setPassword(user.externalId, password);
+      console.log(`Updated the password for "${email}" at the identity provider.`);
+
+      return 0;
+    }
+
+    if (directory || user.externalId) {
+      console.error(
+        `"${email}" is linked to an identity provider that is not configured, ` +
+          `so their password cannot be changed here.`,
+      );
+
+      return 1;
+    }
+
     const passwordHash = await server.auth.hashPassword(password);
     await server.db.updateUserPassword(email, passwordHash);
     console.log(`Updated the password for "${email}".`);

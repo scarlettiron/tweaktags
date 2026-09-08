@@ -56,7 +56,7 @@ Every package in the project, so you can jump straight to the piece you need:
 - **Start here:** [tweaktags](https://www.npmjs.com/package/tweaktags) — the front door, with a map of the whole project
 - **Documentation:** [Security and auth](https://scarlettiron.github.io/tweaktags/#security) on the docs site
 - **UI for your stack:** [@tweaktags/next](https://www.npmjs.com/package/@tweaktags/next) · [@tweaktags/react](https://www.npmjs.com/package/@tweaktags/react) · [@tweaktags/vanillajs](https://www.npmjs.com/package/@tweaktags/vanillajs)
-- **Backend:** [@tweaktags/server](https://www.npmjs.com/package/@tweaktags/server) · **@tweaktags/auth-jwt** (this package) · [@tweaktags/cli](https://www.npmjs.com/package/@tweaktags/cli)
+- **Backend:** [@tweaktags/server](https://www.npmjs.com/package/@tweaktags/server) · **@tweaktags/auth-jwt** (this package) · [@tweaktags/auth-aws-cognito](https://www.npmjs.com/package/@tweaktags/auth-aws-cognito) · [@tweaktags/cli](https://www.npmjs.com/package/@tweaktags/cli)
 - **Databases:** [@tweaktags/db-postgres](https://www.npmjs.com/package/@tweaktags/db-postgres) · [@tweaktags/db-mysql](https://www.npmjs.com/package/@tweaktags/db-mysql) · [@tweaktags/db-mariadb](https://www.npmjs.com/package/@tweaktags/db-mariadb) · [@tweaktags/db-sqlite](https://www.npmjs.com/package/@tweaktags/db-sqlite)
 - **Media uploads:** [@tweaktags/storage-s3](https://www.npmjs.com/package/@tweaktags/storage-s3)
 - **Internals:** [@tweaktags/core](https://www.npmjs.com/package/@tweaktags/core) · [@tweaktags/browser](https://www.npmjs.com/package/@tweaktags/browser)

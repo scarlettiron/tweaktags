@@ -9,8 +9,10 @@
 //This is the shared runtime that both the React and vanilla layers sit on top of.
 
 export { TweakTagsEngine, createTweakTagsEngine } from './engine.js';
+export type { CreateUserResult } from './engine.js';
 
 export type {
+  AuthProvider,
   EngineOptions,
   EngineState,
   ToastMessage,

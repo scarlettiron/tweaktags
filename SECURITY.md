@@ -38,6 +38,14 @@ The published `@tweaktags/*` packages and the unscoped `tweaktags` package. In p
 
 - **Authentication.** Sign in, JSON Web Token issue and rotation, refresh token reuse detection,
   and the cookie flags in `@tweaktags/auth-jwt` and `@tweaktags/server`.
+- **AWS Cognito authentication.** Access token verification against the pool's JWKS, the link
+  between a TweakTags user row and a Cognito `sub`, and the create-or-link path that adds a
+  user, in `@tweaktags/auth-aws-cognito`. Two trade-offs are known and deliberate rather than
+  bugs: Cognito does not rotate refresh tokens, so there is no reuse detection under this
+  provider the way there is under `@tweaktags/auth-jwt`, and every request costs one database
+  read to resolve the role, because a Cognito token carries only its own id and the role lives
+  in the TweakTags users table. A way to sign in without a linked row, or to reach somebody
+  else's row through the link, is in scope.
 - **Authorisation.** Anything that lets a signed out visitor read or write content, or lets an
   editor do something only a superuser should, in the request handler in `@tweaktags/core`.
 - **Injection.** Tag names, content bodies, and media urls reaching SQL, the DOM, or a file path.

@@ -906,6 +906,7 @@ const UsersTab = (): ReactElement => {
     deleteUser,
     confirm,
     notify,
+    hasUserDirectory,
   } = useTweakTags();
 
   //Users get their own state rather than sharing the tag shaped entries above.
@@ -913,8 +914,17 @@ const UsersTab = (): ReactElement => {
   const [loading, setLoading] = useState(true);
   const [newEmail, setNewEmail] = useState('');
   const [newPassword, setNewPassword] = useState('');
+  const [newExternalId, setNewExternalId] = useState('');
   const [newRole, setNewRole] = useState<Role>(ROLES.EDITOR);
+  //With an identity provider in front of us, adding somebody can also mean
+  //pointing at an account they already have there. Creating stays the default
+  //because it is the only thing every other install can do.
+  const [linkMode, setLinkMode] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  //The server sometimes has something to say about a create that still worked.
+  //It sits beside the form rather than only in a toast, because a toast is gone
+  //before anyone has finished reading it.
+  const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(0);
@@ -954,11 +964,21 @@ const UsersTab = (): ReactElement => {
     setResetPassword('');
   };
 
+  //Anything said about the last attempt was said about the other kind of add, so
+  //it would be describing something the form can no longer do.
+  const selectMode = (link: boolean): void => {
+    setLinkMode(link);
+    setError(null);
+    setNotice(null);
+  };
+
   //The server checks the email and the password too, but checking first means a
   //typo shows up in place instead of coming back as a 400.
   const handleCreate = async (): Promise<void> => {
     setError(null);
+    setNotice(null);
     const email = newEmail.trim();
+    const externalId = newExternalId.trim();
 
     if (!isValidEmail(email)) {
       setError('Enter a valid email address.');
@@ -966,7 +986,16 @@ const UsersTab = (): ReactElement => {
       return;
     }
 
-    if (newPassword.length < MIN_PASSWORD_LENGTH) {
+    //Linking leaves the provider's account exactly as it is, password included,
+    //so there is no password here to hold to the length rule. The id takes its
+    //place as the field that has to be filled in.
+    if (linkMode) {
+      if (!externalId) {
+        setError('Enter the identity provider user id to link.');
+
+        return;
+      }
+    } else if (newPassword.length < MIN_PASSWORD_LENGTH) {
       setError(`The password must be at least ${MIN_PASSWORD_LENGTH} characters.`);
 
       return;
@@ -975,12 +1004,23 @@ const UsersTab = (): ReactElement => {
     setBusy(true);
 
     try {
-      const created = await createUser(email, newPassword, newRole);
-      setUsers((current) => [...current, created]);
+      const created = await createUser(
+        email,
+        linkMode ? '' : newPassword,
+        newRole,
+        linkMode ? externalId : undefined,
+      );
+      setUsers((current) => [...current, created.user]);
       setNewEmail('');
       setNewPassword('');
+      setNewExternalId('');
       setNewRole(ROLES.EDITOR);
-      notify(`Added ${created.email}.`, 'success');
+      //A notice means the add did not go the way it looked like it would, most
+      //often that the address already had an account at the provider and was
+      //linked rather than created. The server knows what actually happened, so
+      //its wording replaces ours instead of being tacked on after it.
+      setNotice(created.notice ?? null);
+      notify(created.notice ?? `Added ${created.user.email}.`, 'success');
     } catch (createError) {
       //A duplicate address comes back as a conflict from the server, so the
       //message it carries is the one worth showing.
@@ -1057,6 +1097,30 @@ const UsersTab = (): ReactElement => {
       <div style={s.card}>
         <strong style={{ fontSize: '1.05rem' }}>Add a user</strong>
 
+        {hasUserDirectory ? (
+          //Without a directory there is nothing to link to, so this would be a
+          //choice between one real option and an impossible one.
+          <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              style={linkMode ? s.subtleButton : s.button}
+              aria-pressed={!linkMode}
+              onClick={() => selectMode(false)}
+            >
+              Create a new user
+            </button>
+
+            <button
+              type="button"
+              style={linkMode ? s.button : s.subtleButton}
+              aria-pressed={linkMode}
+              onClick={() => selectMode(true)}
+            >
+              Link an existing account
+            </button>
+          </div>
+        ) : null}
+
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
           <label style={s.label}>Email</label>
           <input
@@ -1069,16 +1133,30 @@ const UsersTab = (): ReactElement => {
           />
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-          <label style={s.label}>Starting password</label>
-          <input
-            style={s.input}
-            type="password"
-            autoComplete="new-password"
-            value={newPassword}
-            onChange={(event) => setNewPassword(event.target.value)}
-          />
-        </div>
+        {linkMode ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+            <label style={s.label}>Identity provider user id</label>
+            <input
+              style={s.input}
+              type="text"
+              autoComplete="off"
+              placeholder="the sub of the Cognito user to link"
+              value={newExternalId}
+              onChange={(event) => setNewExternalId(event.target.value)}
+            />
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+            <label style={s.label}>Starting password</label>
+            <input
+              style={s.input}
+              type="password"
+              autoComplete="new-password"
+              value={newPassword}
+              onChange={(event) => setNewPassword(event.target.value)}
+            />
+          </div>
+        )}
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
           <label style={s.label}>Role</label>
@@ -1103,10 +1181,18 @@ const UsersTab = (): ReactElement => {
 
         {error ? <span style={{ color: '#ff9a9a' }}>{error}</span> : null}
 
+        {notice ? (
+          //The add worked, so this deliberately stays out of the red the errors
+          //above are given.
+          <span style={{ opacity: 0.75 }}>{notice}</span>
+        ) : null}
+
         <span style={{ opacity: 0.6, fontSize: '12px' }}>
           An editor can change the content of tags that already exist. A superuser can also create
-          and delete tags, and manage users. Passwords need at least {MIN_PASSWORD_LENGTH}{' '}
-          characters.
+          and delete tags, and manage users.{' '}
+          {linkMode
+            ? 'Linking keeps the account the identity provider already holds, so no password is set here.'
+            : `Passwords need at least ${MIN_PASSWORD_LENGTH} characters.`}
         </span>
       </div>
 

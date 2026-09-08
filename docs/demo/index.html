@@ -191,6 +191,53 @@
         color: #3c4150;
       }
 
+      /*An example component, the sort of card a real site is full of. Every piece
+        of text in it is a separate tag, which is the point: TweakTags edits the
+        parts of a component, not the component.*/
+      .site-demo .cards {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+        gap: 1rem;
+        margin: 1.75rem 0 0;
+        padding-top: 1.5rem;
+        border-top: 1px solid #e6e8ee;
+      }
+
+      .site-demo .card {
+        border: 1px solid #e6e8ee;
+        border-radius: 0.7rem;
+        padding: 1rem 1.1rem;
+        background: #fbfbfd;
+      }
+
+      .site-demo .card .eyebrow {
+        font-size: 0.72rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: #6b7280;
+        margin: 0 0 0.35rem;
+      }
+
+      .site-demo .card h3 {
+        margin: 0 0 0.4rem;
+        font-size: 1.05rem;
+        color: #14151a;
+      }
+
+      .site-demo .card p {
+        margin: 0;
+        font-size: 0.92rem;
+        line-height: 1.5;
+        color: #4b5563;
+      }
+
+      .site-demo .card .price {
+        display: block;
+        margin-top: 0.6rem;
+        font-weight: 700;
+        color: #14151a;
+      }
+
       .site-demo .cta {
         display: inline-block;
         padding: 0.6rem 1.1rem;
@@ -245,6 +292,13 @@
         </li>
         <li>Click <strong>Edit page</strong>. The editable spots pick up a dashed outline.</li>
         <li>Click the heading or the paragraph below and type. Try the toolbar on the rich text.</li>
+        <li>
+          Scroll to the three cards. Every line in them is its own tag, so a component is edited
+          piece by piece rather than as one block.
+        </li>
+        <li>
+          Grab the bar anywhere that is not a button and drag it out of your way.
+        </li>
         <li>Click <strong>Save</strong>, then reload the page to see it come back from the store.</li>
       </ol>
 
@@ -265,12 +319,46 @@
             Hardwood flooring, decking, and custom millwork since 1974.
           </p>
           <a class="cta" href="#">Request a quote</a>
+
+          <!--An example component. Three cards, each with its own eyebrow,
+              heading, description, and price, so there are twelve separate tags
+              on one component. Nothing here knows about TweakTags beyond the
+              attribute names.-->
+          <div class="cards">
+            <div class="card">
+              <p class="eyebrow" data-tweaktags-card-one-eyebrow>Most popular</p>
+              <h3 data-tweaktags-card-one-title>White Oak</h3>
+              <p data-tweaktags-card-one-body>
+                Rift and quartersawn, kiln dried to 7 percent. Sold by the board foot.
+              </p>
+              <span class="price" data-tweaktags-card-one-price>$14.50 / bf</span>
+            </div>
+
+            <div class="card">
+              <p class="eyebrow" data-tweaktags-card-two-eyebrow>New this month</p>
+              <h3 data-tweaktags-card-two-title>Black Walnut</h3>
+              <p data-tweaktags-card-two-body>
+                Wide stock from our own yard, steamed or unsteamed. Ask for the figured lift.
+              </p>
+              <span class="price" data-tweaktags-card-two-price>$22.00 / bf</span>
+            </div>
+
+            <div class="card">
+              <p class="eyebrow" data-tweaktags-card-three-eyebrow>Clearance</p>
+              <h3 data-tweaktags-card-three-title>Poplar Shorts</h3>
+              <p data-tweaktags-card-three-body>
+                Under four feet, paint grade, perfect for jigs and shop furniture.
+              </p>
+              <span class="price" data-tweaktags-card-three-price>$3.25 / bf</span>
+            </div>
+          </div>
         </div>
       </div>
 
       <div class="note">
         <strong>What just happened.</strong> The heading, the paragraph, and the banner image are
-        ordinary HTML elements that each carry a <code>data-tweaktags-*</code> attribute. TweakTags crawled the page, loaded
+        ordinary HTML elements that each carry a <code>data-tweaktags-*</code> attribute, and so is
+        every line of the three cards below them. TweakTags crawled the page, loaded
         the saved content, and made those elements editable for the signed in user. Everyone else
         sees the saved content and nothing else. That is the whole idea: you bolt it onto a site you
         already have, instead of rebuilding the site around a CMS.

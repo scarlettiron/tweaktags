@@ -1,6 +1,6 @@
 {
   "name": "@tweaktags/auth-jwt",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "Email and password authentication for TweakTags, the self-hosted inline CMS for Next.js and React. Rotating JSON Web Tokens with bcrypt hashed passwords.",
   "keywords": [
     "tweaktags",

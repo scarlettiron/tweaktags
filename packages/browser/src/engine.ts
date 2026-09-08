@@ -22,6 +22,7 @@ import { readCookie, readStoredTokens, writeStoredTokens } from './token-storage
 import { findTweakTagsElements, tweaktagsTagOf } from './scanner.js';
 import { Emitter } from './emitter.js';
 import type {
+  AuthProvider,
   EngineOptions,
   EngineState,
   ToastMessage,
@@ -32,6 +33,13 @@ import type {
 //The shape returned by the getContent action.
 interface GetContentResponse {
   content: ContentRecord[];
+}
+
+//What creating a user gives back. The notice is present only when the server has
+//something to tell the person who did it.
+export interface CreateUserResult {
+  user: AuthUser;
+  notice?: string;
 }
 
 //Works out where to float the rich text toolbar for an element.
@@ -56,6 +64,7 @@ export class TweakTagsEngine {
   private readonly _richText: boolean;
   private readonly _mediaUpload: boolean;
   private readonly _whiteLabel: boolean;
+  private readonly _authProvider: AuthProvider;
 
   private _user: AuthUser | null = null;
   private _isEditing = false;
@@ -123,6 +132,7 @@ export class TweakTagsEngine {
     this._richText = options.richText ?? false;
     this._mediaUpload = options.mediaUpload ?? false;
     this._whiteLabel = options.whiteLabel ?? true;
+    this._authProvider = options.authProvider ?? 'jwt';
     this.tokenStorage = options.tokenStorage ?? 'cookie';
     this.csrfCookieName = options.csrfCookieName ?? 'tweaktags_csrf';
 
@@ -158,6 +168,16 @@ export class TweakTagsEngine {
 
   public get whiteLabel(): boolean {
     return this._whiteLabel;
+  }
+
+  public get authProvider(): AuthProvider {
+    return this._authProvider;
+  }
+
+  //Whether adding a user can also mean linking an account that already exists
+  //somewhere else. True for every provider but our own users table.
+  public get hasUserDirectory(): boolean {
+    return this._authProvider !== 'jwt';
   }
 
   public get mediaUpload(): boolean {
@@ -229,6 +249,7 @@ export class TweakTagsEngine {
       richText: this._richText,
       mediaUpload: this._mediaUpload,
       whiteLabel: this._whiteLabel,
+      authProvider: this._authProvider,
       hasUnsavedChanges: this._hasUnsavedChanges,
     };
   }
@@ -391,14 +412,28 @@ export class TweakTagsEngine {
   }
 
   //Adds a user with a starting password and role. Superuser only.
-  public async createUser(email: string, password: string, role: Role): Promise<AuthUser> {
-    const result = await this.api.request<{ user: AuthUser }>(ACTIONS.CREATE_USER, {
+  //
+  //With an identity provider configured, pass externalId instead of a password
+  //to link an account that already exists there rather than making a new one.
+  //
+  //Returns a notice when the server did something worth saying out loud, which
+  //today means the address already had an account at the provider and was linked
+  //instead of created. It is a success message, not an error: an error arrives by
+  //being thrown, the way every other call reports one.
+  public async createUser(
+    email: string,
+    password: string,
+    role: Role,
+    externalId?: string,
+  ): Promise<CreateUserResult> {
+    const result = await this.api.request<CreateUserResult>(ACTIONS.CREATE_USER, {
       email,
       password,
       role,
+      ...(externalId ? { externalId } : {}),
     });
 
-    return result.user;
+    return { user: result.user, ...(result.notice ? { notice: result.notice } : {}) };
   }
 
   //Changes somebody else's role, which signs them out. Superuser only.

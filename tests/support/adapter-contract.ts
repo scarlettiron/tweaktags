@@ -318,6 +318,97 @@ export const describeDatabaseAdapter = (name: string, harness: AdapterHarness): 
         await expect(db.setUserEmail(created.id, 'taken@example.com')).rejects.toThrow();
       });
 
+      it('keeps an external id given at creation', async () => {
+        const created = await db.createUser({
+          email: 'linked@example.com',
+          passwordHash: 'a',
+          role: 'editor',
+          externalId: 'idp-user-1',
+        });
+
+        expect(created.externalId).toBe('idp-user-1');
+        expect((await db.findUserByEmail('linked@example.com'))?.externalId).toBe('idp-user-1');
+      });
+
+      it('stores null when a user is created without an external id', async () => {
+        //Null and undefined both read as falsy, and only null is what an
+        //unlinked user is supposed to hold, so this asserts the exact value.
+        const created = await db.createUser({
+          email: 'unlinked@example.com',
+          passwordHash: 'a',
+          role: 'editor',
+        });
+
+        expect(created.externalId).toBeNull();
+        expect((await db.findUserByEmail('unlinked@example.com'))?.externalId).toBeNull();
+      });
+
+      it('finds a user by external id and reports a miss for an unknown one', async () => {
+        const created = await db.createUser({
+          email: 'linked@example.com',
+          passwordHash: 'a',
+          role: 'editor',
+          externalId: 'idp-user-1',
+        });
+
+        expect((await db.findUserByExternalId('idp-user-1'))?.id).toBe(created.id);
+        expect(await db.findUserByExternalId('idp-nobody')).toBeNull();
+      });
+
+      it('links an external id by id for that user only', async () => {
+        const target = await db.createUser({
+          email: 'target@example.com',
+          passwordHash: 'a',
+          role: 'editor',
+        });
+        const bystander = await db.createUser({
+          email: 'bystander@example.com',
+          passwordHash: 'b',
+          role: 'editor',
+        });
+
+        expect(await db.setUserExternalId(target.id, 'idp-user-1')).toBe(true);
+
+        expect((await db.findUserById(target.id))?.externalId).toBe('idp-user-1');
+        expect((await db.findUserById(bystander.id))?.externalId).toBeNull();
+      });
+
+      it('unlinks a user when the external id is set to null', async () => {
+        const created = await db.createUser({
+          email: 'linked@example.com',
+          passwordHash: 'a',
+          role: 'editor',
+          externalId: 'idp-user-1',
+        });
+
+        expect(await db.setUserExternalId(created.id, null)).toBe(true);
+
+        expect((await db.findUserById(created.id))?.externalId).toBeNull();
+        expect(await db.findUserByExternalId('idp-user-1')).toBeNull();
+      });
+
+      it('reports a miss when linking an external id to an unknown user', async () => {
+        expect(await db.setUserExternalId(UNKNOWN_ID, 'idp-user-1')).toBe(false);
+      });
+
+      it('refuses an external id another user already has', async () => {
+        await db.createUser({
+          email: 'taken@example.com',
+          passwordHash: 'a',
+          role: 'editor',
+          externalId: 'idp-user-1',
+        });
+        const created = await db.createUser({
+          email: 'mine@example.com',
+          passwordHash: 'b',
+          role: 'editor',
+        });
+
+        //Each driver raises a different code for this. What matters is that all
+        //of them reject, and that the adapter turns it into a thrown error.
+        await expect(db.setUserExternalId(created.id, 'idp-user-1')).rejects.toThrow();
+      });
+
       it('deletes a user by id and reports a miss for an unknown one', async () => {
         const created = await db.createUser({
           email: 'departing@example.com',

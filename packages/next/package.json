@@ -1,6 +1,6 @@
 {
   "name": "@tweaktags/next",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "Self-hosted inline CMS and visual editor for Next.js. Let editors change text, rich text, images, and website content directly on the live page, with no separate CMS dashboard.",
   "keywords": [
     "tweaktags",

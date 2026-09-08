@@ -126,8 +126,8 @@ const CSS = `
 textarea.tt-input { resize: vertical; }
 
 .tt-grip {
-  width: 10px;
-  height: 18px;
+  width: 16px;
+  height: 24px;
   cursor: grab;
   touch-action: none;
   user-select: none;
@@ -135,6 +135,14 @@ textarea.tt-input { resize: vertical; }
   background-image: radial-gradient(var(--tt-muted) 1.2px, transparent 1.3px);
   background-size: 5px 5px;
   background-position: center;
+}
+/*The whole bar is the drag target, so it says so. Buttons and inputs inside set
+  their own cursor, which keeps them looking clickable rather than draggable.
+  Deliberately no touch-action here: it belongs on the grip alone, so a finger on
+  the bar still scrolls the page and only the grip starts a drag. On a phone the
+  bar is a menu you scroll past, not a thing you rearrange.*/
+.tt-draggable {
+  cursor: grab;
 }
 .tt-email {
   color: var(--tt-muted);

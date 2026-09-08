@@ -33,6 +33,10 @@ class MemoryStore implements UserStore, RefreshTokenStore {
     return this.users.find((user) => user.id === id) ?? null;
   }
 
+  async findUserByExternalId(externalId: string): Promise<StoredUser | null> {
+    return this.users.find((user) => user.externalId === externalId) ?? null;
+  }
+
   async createUser(input: CreateUserInput): Promise<StoredUser> {
     //Mirror the real adapters, which reject a duplicate email with a conflict.
     if (this.users.some((user) => user.email === input.email)) {
@@ -44,6 +48,7 @@ class MemoryStore implements UserStore, RefreshTokenStore {
       email: input.email,
       role: input.role,
       passwordHash: input.passwordHash,
+      externalId: input.externalId ?? null,
     };
 
     this.nextId += 1;
@@ -88,6 +93,20 @@ class MemoryStore implements UserStore, RefreshTokenStore {
     }
 
     return false;
+  }
+
+  //A hard delete, like the real adapters, rather than the revoke flag above.
+  async deleteRefreshTokensForUser(userId: string, exceptFamilyId?: string): Promise<void> {
+    for (const [id, record] of this.refreshTokens) {
+      if (record.userId === userId && record.familyId !== exceptFamilyId) {
+        this.refreshTokens.delete(id);
+      }
+    }
+  }
+
+  //Test only, so a test can see what survived an endSessions call.
+  countRefreshTokens(): number {
+    return this.refreshTokens.size;
   }
 }
 
@@ -241,6 +260,51 @@ describe('jwt auth adapter', () => {
       vi.spyOn(Date, 'now').mockReturnValue(later);
 
       expect(await adapter.refresh(login.refreshToken)).toBeNull();
+    });
+  });
+
+  describe('ending sessions', () => {
+    it('deletes every refresh token a user owns', async () => {
+      const { store, adapter } = buildAdapter();
+
+      await adapter.createUser('one@example.com', 'password123', 'editor');
+      await adapter.login('one@example.com', 'password123');
+      await adapter.login('one@example.com', 'password123');
+
+      expect(store.countRefreshTokens()).toBe(2);
+
+      await adapter.endSessions('1');
+
+      expect(store.countRefreshTokens()).toBe(0);
+    });
+
+    //What lets somebody change their own password without signing themselves out
+    //of the device they are typing on.
+    it('spares one family so the session doing the change survives', async () => {
+      const { store, adapter } = buildAdapter();
+
+      await adapter.createUser('one@example.com', 'password123', 'editor');
+      await adapter.login('one@example.com', 'password123');
+      const mine = await adapter.login('one@example.com', 'password123');
+      const actor = await adapter.verify(mine.accessToken);
+
+      await adapter.endSessions('1', actor?.familyId);
+
+      expect(store.countRefreshTokens()).toBe(1);
+      expect(await adapter.refresh(mine.refreshToken)).not.toBeNull();
+    });
+
+    it('leaves another user alone', async () => {
+      const { store, adapter } = buildAdapter();
+
+      await adapter.createUser('one@example.com', 'password123', 'editor');
+      await adapter.createUser('two@example.com', 'password123', 'editor');
+      await adapter.login('one@example.com', 'password123');
+      await adapter.login('two@example.com', 'password123');
+
+      await adapter.endSessions('1');
+
+      expect(store.countRefreshTokens()).toBe(1);
     });
   });
 });

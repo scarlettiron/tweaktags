@@ -65,6 +65,8 @@ const barStyle: CSSProperties = {
 
 const dragHandleStyle: CSSProperties = {
   cursor: 'grab',
+  //The only place touch-action is switched off. A finger anywhere else on the
+  //bar still scrolls the page, which is what somebody on a phone wants.
   touchAction: 'none',
   userSelect: 'none',
   display: 'flex',
@@ -73,8 +75,8 @@ const dragHandleStyle: CSSProperties = {
 };
 
 const gripDotsStyle: CSSProperties = {
-  width: '10px',
-  height: '18px',
+  width: '16px',
+  height: '24px',
   backgroundImage: `radial-gradient(${COLORS.muted} 1.2px, transparent 1.3px)`,
   backgroundSize: '5px 5px',
   backgroundPosition: 'center',
@@ -592,14 +594,32 @@ const rowSelectStyle: CSSProperties = { ...inputStyle, padding: '0.2rem 0.3rem',
 //passwords, and removes them. The server enforces every rule below on its own;
 //the job here is to show them before somebody runs into one.
 const UserManager = ({ onClose }: { onClose: () => void }): ReactElement => {
-  const { user, listUsers, createUser, updateUserRole, updateUserPassword, deleteUser, notify, confirm } =
-    useTweakTags();
+  const {
+    user,
+    listUsers,
+    createUser,
+    updateUserRole,
+    updateUserPassword,
+    deleteUser,
+    notify,
+    confirm,
+    hasUserDirectory,
+  } = useTweakTags();
 
   const [users, setUsers] = useState<AuthUser[] | null>(null);
   const [newEmail, setNewEmail] = useState('');
   const [newPassword, setNewPassword] = useState('');
+  const [newExternalId, setNewExternalId] = useState('');
   const [newRole, setNewRole] = useState<Role>(ROLES.EDITOR);
+  //With an identity provider in front of us, adding somebody can also mean
+  //pointing at an account they already have there. Creating stays the default
+  //because it is the only thing every other install can do.
+  const [linkMode, setLinkMode] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  //The server sometimes has something to say about a create that still worked.
+  //It stays beside the form rather than only in a toast, because a toast is gone
+  //before anyone has finished reading it.
+  const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [search, setSearch] = useState('');
   const [openUser, setOpenUser] = useState<string | null>(null);
@@ -638,11 +658,21 @@ const UserManager = ({ onClose }: { onClose: () => void }): ReactElement => {
     setResetPassword('');
   };
 
+  //Anything said about the last attempt was said about the other kind of add, so
+  //it would be describing something the form can no longer do.
+  const selectMode = (link: boolean): void => {
+    setLinkMode(link);
+    setError(null);
+    setNotice(null);
+  };
+
   //The server checks the email and the password too, but checking first means a
   //typo shows up in place instead of coming back as a 400.
   const handleCreate = async (): Promise<void> => {
     setError(null);
+    setNotice(null);
     const email = newEmail.trim();
+    const externalId = newExternalId.trim();
 
     if (!isValidEmail(email)) {
       setError('Enter a valid email address.');
@@ -650,7 +680,16 @@ const UserManager = ({ onClose }: { onClose: () => void }): ReactElement => {
       return;
     }
 
-    if (newPassword.length < MIN_PASSWORD_LENGTH) {
+    //Linking leaves the provider's account exactly as it is, password included,
+    //so there is no password here to hold to the length rule. The id takes its
+    //place as the field that has to be filled in.
+    if (linkMode) {
+      if (!externalId) {
+        setError('Enter the identity provider user id to link.');
+
+        return;
+      }
+    } else if (newPassword.length < MIN_PASSWORD_LENGTH) {
       setError(`The password must be at least ${MIN_PASSWORD_LENGTH} characters.`);
 
       return;
@@ -659,12 +698,23 @@ const UserManager = ({ onClose }: { onClose: () => void }): ReactElement => {
     setBusy(true);
 
     try {
-      const created = await createUser(email, newPassword, newRole);
-      setUsers((current) => [...(current ?? []), created]);
+      const created = await createUser(
+        email,
+        linkMode ? '' : newPassword,
+        newRole,
+        linkMode ? externalId : undefined,
+      );
+      setUsers((current) => [...(current ?? []), created.user]);
       setNewEmail('');
       setNewPassword('');
+      setNewExternalId('');
       setNewRole(ROLES.EDITOR);
-      notify(`Added ${created.email}.`, 'success');
+      //A notice means the add did not go the way it looked like it would, most
+      //often that the address already had an account at the provider and was
+      //linked rather than created. The server knows what actually happened, so
+      //its wording replaces ours instead of being tacked on after it.
+      setNotice(created.notice ?? null);
+      notify(created.notice ?? `Added ${created.user.email}.`, 'success');
     } catch (createError) {
       //A duplicate address comes back as a conflict from the server, so the
       //message it carries is the one worth showing.
@@ -746,6 +796,32 @@ const UserManager = ({ onClose }: { onClose: () => void }): ReactElement => {
 
       <strong>Add a user</strong>
 
+      {hasUserDirectory ? (
+        //Without a directory there is nothing to link to, so this would be a
+        //choice between one real option and an impossible one. Two row sized
+        //buttons keep it to a single line at 21rem, where a pair of full size
+        //ones would wrap.
+        <div style={{ display: 'flex', gap: '0.35rem' }}>
+          <button
+            type="button"
+            style={linkMode ? rowSubtleStyle : rowButtonStyle}
+            aria-pressed={!linkMode}
+            onClick={() => selectMode(false)}
+          >
+            New user
+          </button>
+
+          <button
+            type="button"
+            style={linkMode ? rowButtonStyle : rowSubtleStyle}
+            aria-pressed={linkMode}
+            onClick={() => selectMode(true)}
+          >
+            Link existing
+          </button>
+        </div>
+      ) : null}
+
       <input
         style={inputStyle}
         type="email"
@@ -755,14 +831,25 @@ const UserManager = ({ onClose }: { onClose: () => void }): ReactElement => {
         onChange={(event) => setNewEmail(event.target.value)}
       />
 
-      <input
-        style={inputStyle}
-        type="password"
-        autoComplete="new-password"
-        placeholder={`password, at least ${MIN_PASSWORD_LENGTH} characters`}
-        value={newPassword}
-        onChange={(event) => setNewPassword(event.target.value)}
-      />
+      {linkMode ? (
+        <input
+          style={inputStyle}
+          type="text"
+          autoComplete="off"
+          placeholder="identity provider user id (Cognito sub)"
+          value={newExternalId}
+          onChange={(event) => setNewExternalId(event.target.value)}
+        />
+      ) : (
+        <input
+          style={inputStyle}
+          type="password"
+          autoComplete="new-password"
+          placeholder={`password, at least ${MIN_PASSWORD_LENGTH} characters`}
+          value={newPassword}
+          onChange={(event) => setNewPassword(event.target.value)}
+        />
+      )}
 
       <select
         style={inputStyle}
@@ -778,6 +865,12 @@ const UserManager = ({ onClose }: { onClose: () => void }): ReactElement => {
       </button>
 
       {error ? <span style={{ color: '#ff9a9a' }}>{error}</span> : null}
+
+      {notice ? (
+        //The add worked, so this deliberately stays out of the red the errors
+        //above are given.
+        <span style={{ color: COLORS.muted }}>{notice}</span>
+      ) : null}
 
       <hr style={{ width: '100%', border: 'none', borderTop: `1px solid ${COLORS.border}`, margin: 0 }} />
 
@@ -1227,11 +1320,20 @@ export const TweakTagsEditBar = (): ReactElement => {
     setEditing(false);
   };
 
-  //Drag handlers, used only for the wide screen bar.
-  const startDrag = (event: ReactPointerEvent<HTMLSpanElement>): void => {
+  //Anything the pointer can act on in its own right. A drag that started on one
+  //of these would swallow the click, so the bar leaves them alone.
+  const INTERACTIVE = 'button, a, input, select, textarea, [contenteditable="true"]';
+
+  const startsOnAControl = (target: EventTarget | null): boolean =>
+    target instanceof Element && target.closest(INTERACTIVE) !== null;
+
+  //Drag handlers. They sit on the whole bar rather than the grip, because a ten
+  //pixel target is one most people never find and some cannot hit at all. The
+  //grip stays as the visible hint that the thing moves.
+  const startDrag = (event: ReactPointerEvent<HTMLElement>): void => {
     const bar = barRef.current;
 
-    if (!bar) {
+    if (!bar || startsOnAControl(event.target)) {
       return;
     }
 
@@ -1240,7 +1342,7 @@ export const TweakTagsEditBar = (): ReactElement => {
     event.currentTarget.setPointerCapture(event.pointerId);
   };
 
-  const onDrag = (event: ReactPointerEvent<HTMLSpanElement>): void => {
+  const onDrag = (event: ReactPointerEvent<HTMLElement>): void => {
     const offset = dragOffset.current;
     const bar = barRef.current;
 
@@ -1256,7 +1358,7 @@ export const TweakTagsEditBar = (): ReactElement => {
     setPosition({ left, top });
   };
 
-  const endDrag = (event: ReactPointerEvent<HTMLSpanElement>): void => {
+  const endDrag = (event: ReactPointerEvent<HTMLElement>): void => {
     dragOffset.current = null;
 
     try {
@@ -1270,19 +1372,21 @@ export const TweakTagsEditBar = (): ReactElement => {
     ? { left: position.left, top: position.top, right: 'auto', bottom: 'auto' }
     : {};
 
-  //The reusable grab handle for the card and bar headers.
+  //The visible hint that the bar moves. The drag itself is on the container, so
+  //this needs no handlers of its own.
   const dragHandle = (
-    <span
-      style={dragHandleStyle}
-      onPointerDown={startDrag}
-      onPointerMove={onDrag}
-      onPointerUp={endDrag}
-      title="Drag to move"
-      aria-label="Drag to move"
-    >
+    <span style={dragHandleStyle} title="Drag to move" aria-label="Drag to move">
       <span style={gripDotsStyle} />
     </span>
   );
+
+  //Spread onto whichever container is draggable.
+  const dragProps = {
+    onPointerDown: startDrag,
+    onPointerMove: onDrag,
+    onPointerUp: endDrag,
+    onPointerCancel: endDrag,
+  };
 
   //The editing controls, shared by both layouts.
   const editControls = (stacked: boolean): ReactElement | null => {
@@ -1334,7 +1438,13 @@ export const TweakTagsEditBar = (): ReactElement => {
     return (
       <div
         ref={barRef}
-        style={{ ...menuStyle, width: 'min(32rem, calc(100vw - 2rem))', ...positionStyle }}
+        style={{
+          ...menuStyle,
+          width: 'min(32rem, calc(100vw - 2rem))',
+          ...positionStyle,
+          cursor: 'grab',
+        }}
+        {...dragProps}
       >
         <div style={headerStyle}>
           <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
@@ -1442,7 +1552,11 @@ export const TweakTagsEditBar = (): ReactElement => {
     <>
       {panels}
 
-      <div ref={barRef} style={{ ...barStyle, ...positionStyle }}>
+      <div
+        ref={barRef}
+        style={{ ...barStyle, ...positionStyle, cursor: 'grab' }}
+        {...dragProps}
+      >
         {dragHandle}
 
         <button

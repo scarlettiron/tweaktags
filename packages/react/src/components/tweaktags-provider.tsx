@@ -9,7 +9,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import type { ReactElement, ReactNode } from 'react';
 
 import { DEFAULT_API_BASE_PATH, type Role, type TagType } from '@tweaktags/core';
-import { TweakTagsEngine, type ToolbarPosition } from '@tweaktags/browser';
+import { TweakTagsEngine, type AuthProvider, type ToolbarPosition } from '@tweaktags/browser';
 
 import { TweakTagsContext, type TweakTagsContextValue } from '../context/tweaktags-context.js';
 import { DefaultLoader } from './default-loader.js';
@@ -58,6 +58,12 @@ export interface TweakTagsProviderProps {
   //The csrf cookie name, must match the server config. Defaults to 'tweaktags_csrf'.
   csrfCookieName?: string;
 
+  //Which auth provider your server config uses. Defaults to 'jwt'. Pass
+  //'aws-cognito' so the Users panel offers linking an account that already exists in
+  //the pool as well as creating a new one. It changes the panel only: the server
+  //enforces every rule whatever this says.
+  authProvider?: AuthProvider;
+
   //A custom loading component to show while content loads.
   loadingComponent?: ReactNode;
 }
@@ -76,6 +82,7 @@ export const TweakTagsProvider = ({
   whiteLabel = true,
   tokenStorage = 'cookie',
   csrfCookieName = 'tweaktags_csrf',
+  authProvider = 'jwt',
   loadingComponent,
 }: TweakTagsProviderProps): ReactElement => {
   //Create the engine once and keep it for the life of the provider.
@@ -90,6 +97,7 @@ export const TweakTagsProvider = ({
       whiteLabel,
       tokenStorage,
       csrfCookieName,
+      authProvider,
     });
   }
 
@@ -173,8 +181,8 @@ export const TweakTagsProvider = ({
       setTagType: (tag: string, type: TagType) => engine.setTagType(tag, type),
       listTags: () => engine.listTags(),
       listUsers: () => engine.listUsers(),
-      createUser: (email: string, password: string, role: Role) =>
-        engine.createUser(email, password, role),
+      createUser: (email: string, password: string, role: Role, externalId?: string) =>
+        engine.createUser(email, password, role, externalId),
       updateUserRole: (userId: string, role: Role) => engine.updateUserRole(userId, role),
       updateUserPassword: (userId: string, password: string) =>
         engine.updateUserPassword(userId, password),
@@ -204,6 +212,7 @@ export const TweakTagsProvider = ({
       whiteLabel: engine.whiteLabel,
       canEdit: engine.canEdit,
       isSuperuser: engine.isSuperuser,
+      hasUserDirectory: engine.hasUserDirectory,
       hasUnsavedChanges: engine.hasUnsavedChanges,
       ...actions,
       confirm,

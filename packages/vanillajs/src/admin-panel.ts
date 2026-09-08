@@ -547,14 +547,73 @@ export const mountAdminPanel = (
     //list rather than a column of password boxes.
     let openPasswordFor: string | null = null;
 
+    //With an identity provider in front of the server, an address may already
+    //have an account there, so adding somebody is two jobs rather than one: make
+    //a new account, or point TweakTags at one that exists already. Without a
+    //directory only the first is possible, and none of this is drawn.
+    let linkMode = false;
+
     const listWrap = el('div', { style: { display: 'flex', flexDirection: 'column', gap: '0.6rem' } });
 
     const newEmail = el('input', { class: 'tt-input', type: 'email', autocomplete: 'off', placeholder: 'name@example.com' });
     const newPassword = el('input', { class: 'tt-input', type: 'password', autocomplete: 'new-password' });
+    const newExternalId = el('input', {
+      class: 'tt-input tt-mono',
+      type: 'text',
+      autocomplete: 'off',
+      placeholder: 'the sub of the existing user',
+    });
     const newRole = el('select', { class: 'tt-input' }, roleOptions());
     const createError = el('span', { class: 'tt-error' });
     createError.style.display = 'none';
+    //A success the server wanted to explain, kept beside the form as well as in
+    //the toast so it can still be read once the toast has gone. Hint styling
+    //rather than error styling, because nothing went wrong.
+    const createNotice = el('span', { class: 'tt-hint' });
+    createNotice.style.display = 'none';
     const createButton = el('button', { class: 'tt-btn', style: { alignSelf: 'flex-start' }, type: 'button', text: 'Create user' });
+
+    //The two modes differ by a single field, so they share the rest of the form
+    //and swap that one in and out. Redrawing only this much keeps whatever was
+    //already typed into the fields the modes have in common.
+    const formWrap = el('div', { style: { display: 'flex', flexDirection: 'column', gap: '0.85rem' } });
+
+    const drawForm = (): void => {
+      clear(formWrap);
+      formWrap.append(field('Email', newEmail));
+
+      if (linkMode) {
+        formWrap.append(
+          field('Identity provider user id', newExternalId),
+          el('span', {
+            class: 'tt-hint',
+            text: 'For Cognito this is the sub of the user in the pool. TweakTags sets no password, so they go on signing in the way they already do.',
+          }),
+        );
+      } else {
+        formWrap.append(field('Password', newPassword));
+      }
+
+      formWrap.append(field('Role', newRole));
+    };
+
+    const createModeButton = el('button', { class: 'tt-btn', type: 'button', text: 'Create a new user' });
+    const linkModeButton = el('button', { class: 'tt-btn tt-subtle', type: 'button', text: 'Link an existing account' });
+
+    const setLinkMode = (next: boolean): void => {
+      linkMode = next;
+      createModeButton.className = next ? 'tt-btn tt-subtle' : 'tt-btn';
+      linkModeButton.className = next ? 'tt-btn' : 'tt-btn tt-subtle';
+      createButton.textContent = next ? 'Link account' : 'Create user';
+      //Whatever either box says was about the mode being left behind, so neither
+      //of them still applies.
+      createError.style.display = 'none';
+      createNotice.style.display = 'none';
+      drawForm();
+    };
+
+    createModeButton.addEventListener('click', () => setLinkMode(false));
+    linkModeButton.addEventListener('click', () => setLinkMode(true));
 
     const showCreateError = (message: string): void => {
       createError.textContent = message;
@@ -563,7 +622,9 @@ export const mountAdminPanel = (
 
     const handleCreate = async (): Promise<void> => {
       createError.style.display = 'none';
+      createNotice.style.display = 'none';
       const email = newEmail.value.trim();
+      const externalId = newExternalId.value.trim();
 
       //The same two checks the server makes, so a typo comes back straight away
       //instead of as a 400 after a round trip. A duplicate address can only be
@@ -574,7 +635,15 @@ export const mountAdminPanel = (
         return;
       }
 
-      if (newPassword.value.length < MIN_PASSWORD_LENGTH) {
+      //Linking sets no password at all, so the length rule has nothing to
+      //measure. What it needs instead is the id the provider knows them by.
+      if (linkMode) {
+        if (externalId === '') {
+          showCreateError('Enter the identity provider user id.');
+
+          return;
+        }
+      } else if (newPassword.value.length < MIN_PASSWORD_LENGTH) {
         showCreateError(`The password must be at least ${MIN_PASSWORD_LENGTH} characters.`);
 
         return;
@@ -583,12 +652,32 @@ export const mountAdminPanel = (
       createButton.disabled = true;
 
       try {
-        await engine.createUser(email, newPassword.value, newRole.value as Role);
+        const result = await engine.createUser(
+          email,
+          linkMode ? '' : newPassword.value,
+          newRole.value as Role,
+          linkMode ? externalId : undefined,
+        );
         newEmail.value = '';
         newPassword.value = '';
+        newExternalId.value = '';
         newRole.value = ROLES.EDITOR;
-        engine.notify(`Created the user "${email}".`, 'success');
-        await loadUsers();
+
+        //The server's wording, not ours: it is the only side that knows what it
+        //actually did with the address, and what it says is worth more than
+        //"created" would be.
+        if (result.notice) {
+          createNotice.textContent = result.notice;
+          createNotice.style.display = '';
+          engine.notify(result.notice, 'success');
+        } else {
+          engine.notify(`Created the user "${email}".`, 'success');
+        }
+
+        //Taken from the result rather than refetched, because a refetch redraws
+        //the whole tab through showContent and would take the notice with it.
+        users = [...users.filter((item) => item.id !== result.user.id), result.user];
+        draw();
       } catch (createUserError) {
         const message = createUserError instanceof Error ? createUserError.message : 'Could not create the user';
         showCreateError(message);
@@ -821,13 +910,24 @@ export const mountAdminPanel = (
 
     draw();
 
-    return el('div', { class: 'tt-card' }, [
-      el('strong', { style: { fontSize: '1.05rem' }, text: 'Add a user' }),
-      field('Email', newEmail),
-      field('Password', newPassword),
-      field('Role', newRole),
+    drawForm();
+
+    const kids: Child[] = [el('strong', { style: { fontSize: '1.05rem' }, text: 'Add a user' })];
+
+    //Only an install with a directory behind it has two ways to add somebody,
+    //and by far the common case is the one that has not, so that one gets
+    //today's form with no toggle over it at all.
+    if (engine.hasUserDirectory) {
+      kids.push(
+        el('div', { style: { display: 'flex', gap: '0.5rem', flexWrap: 'wrap' } }, [createModeButton, linkModeButton]),
+      );
+    }
+
+    kids.push(
+      formWrap,
       createButton,
       createError,
+      createNotice,
       el('span', {
         class: 'tt-hint',
         text: `An editor can change content for tags that already exist. A superuser can also create tags and manage users. Passwords are at least ${MIN_PASSWORD_LENGTH} characters.`,
@@ -836,7 +936,9 @@ export const mountAdminPanel = (
       el('strong', { style: { fontSize: '1.05rem' }, text: 'Existing users' }),
       search,
       listWrap,
-    ]);
+    );
+
+    return el('div', { class: 'tt-card' }, kids);
   };
 
   //The account tab: your own email and password. Every signed in user gets this,

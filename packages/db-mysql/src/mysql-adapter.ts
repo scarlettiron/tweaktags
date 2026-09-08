@@ -243,7 +243,8 @@ export class MysqlAdapter implements DbAdapter {
 
   public async findUserByEmail(email: string): Promise<StoredUser | null> {
     const [rows] = await this.pool.execute<RowDataPacket[]>(
-      `SELECT id, email, password_hash, role FROM \`${AUTH_TABLE}\` WHERE email = ?;`,
+      `SELECT id, email, password_hash, role, external_id
+       FROM \`${AUTH_TABLE}\` WHERE email = ?;`,
       [email],
     );
 
@@ -254,7 +255,8 @@ export class MysqlAdapter implements DbAdapter {
 
   public async findUserById(id: string): Promise<StoredUser | null> {
     const [rows] = await this.pool.execute<RowDataPacket[]>(
-      `SELECT id, email, password_hash, role FROM \`${AUTH_TABLE}\` WHERE id = ?;`,
+      `SELECT id, email, password_hash, role, external_id
+       FROM \`${AUTH_TABLE}\` WHERE id = ?;`,
       [id],
     );
 
@@ -266,8 +268,9 @@ export class MysqlAdapter implements DbAdapter {
   public async createUser(input: CreateUserInput): Promise<StoredUser> {
     try {
       const [result] = await this.pool.execute<ResultSetHeader>(
-        `INSERT INTO \`${AUTH_TABLE}\` (email, password_hash, role) VALUES (?, ?, ?);`,
-        [input.email, input.passwordHash, input.role],
+        `INSERT INTO \`${AUTH_TABLE}\` (email, password_hash, role, external_id)
+         VALUES (?, ?, ?, ?);`,
+        [input.email, input.passwordHash, input.role, input.externalId ?? null],
       );
 
       return {
@@ -275,6 +278,7 @@ export class MysqlAdapter implements DbAdapter {
         email: input.email,
         role: input.role,
         passwordHash: input.passwordHash,
+        externalId: input.externalId ?? null,
       };
     } catch (error) {
       if (errorCode(error) === DUPLICATE_ENTRY) {
@@ -327,6 +331,37 @@ export class MysqlAdapter implements DbAdapter {
       //so this is the same conflict a caller already handles from createUser.
       if (errorCode(error) === DUPLICATE_ENTRY) {
         throw conflict(`A user with the email "${email}" already exists`);
+      }
+
+      throw error;
+    }
+  }
+
+  public async findUserByExternalId(externalId: string): Promise<StoredUser | null> {
+    const [rows] = await this.pool.execute<RowDataPacket[]>(
+      `SELECT id, email, password_hash, role, external_id
+       FROM \`${AUTH_TABLE}\` WHERE external_id = ?;`,
+      [externalId],
+    );
+
+    const row = rows[0];
+
+    return row ? mapUserRow(row as never) : null;
+  }
+
+  public async setUserExternalId(id: string, externalId: string | null): Promise<boolean> {
+    try {
+      const [result] = await this.pool.execute<ResultSetHeader>(
+        `UPDATE \`${AUTH_TABLE}\` SET external_id = ? WHERE id = ?;`,
+        [externalId, id],
+      );
+
+      return result.affectedRows > 0;
+    } catch (error) {
+      //The unique key on external_id guards an update the same way it guards
+      //an insert, so one provider account cannot end up on two users.
+      if (errorCode(error) === DUPLICATE_ENTRY) {
+        throw conflict('That identity provider account is already linked to another user');
       }
 
       throw error;

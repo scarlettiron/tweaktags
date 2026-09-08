@@ -312,7 +312,7 @@ export class PostgresAdapter implements DbAdapter {
 
   public async findUserByEmail(email: string): Promise<StoredUser | null> {
     const result = await this.pool.query(
-      `SELECT id, email, password_hash, role FROM "${AUTH_TABLE}" WHERE email = $1;`,
+      `SELECT id, email, password_hash, role, external_id FROM "${AUTH_TABLE}" WHERE email = $1;`,
       [email],
     );
 
@@ -323,7 +323,7 @@ export class PostgresAdapter implements DbAdapter {
 
   public async findUserById(id: string): Promise<StoredUser | null> {
     const result = await this.pool.query(
-      `SELECT id, email, password_hash, role FROM "${AUTH_TABLE}" WHERE id = $1;`,
+      `SELECT id, email, password_hash, role, external_id FROM "${AUTH_TABLE}" WHERE id = $1;`,
       [id],
     );
 
@@ -335,10 +335,10 @@ export class PostgresAdapter implements DbAdapter {
   public async createUser(input: CreateUserInput): Promise<StoredUser> {
     try {
       const result = await this.pool.query(
-        `INSERT INTO "${AUTH_TABLE}" (email, password_hash, role)
-         VALUES ($1, $2, $3)
-         RETURNING id, email, password_hash, role;`,
-        [input.email, input.passwordHash, input.role],
+        `INSERT INTO "${AUTH_TABLE}" (email, password_hash, role, external_id)
+         VALUES ($1, $2, $3, $4)
+         RETURNING id, email, password_hash, role, external_id;`,
+        [input.email, input.passwordHash, input.role, input.externalId ?? null],
       );
 
       return mapUserRow(result.rows[0]);
@@ -393,6 +393,37 @@ export class PostgresAdapter implements DbAdapter {
       //so this is the same conflict a caller already handles from createUser.
       if (errorCode(error) === UNIQUE_VIOLATION) {
         throw conflict(`A user with the email "${email}" already exists`);
+      }
+
+      throw error;
+    }
+  }
+
+  public async findUserByExternalId(externalId: string): Promise<StoredUser | null> {
+    const result = await this.pool.query(
+      `SELECT id, email, password_hash, role, external_id
+       FROM "${AUTH_TABLE}" WHERE external_id = $1;`,
+      [externalId],
+    );
+
+    const row = result.rows[0];
+
+    return row ? mapUserRow(row) : null;
+  }
+
+  public async setUserExternalId(id: string, externalId: string | null): Promise<boolean> {
+    try {
+      const result = await this.pool.query(
+        `UPDATE "${AUTH_TABLE}" SET external_id = $2 WHERE id = $1;`,
+        [id, externalId],
+      );
+
+      return (result.rowCount ?? 0) > 0;
+    } catch (error) {
+      //The unique index on external_id guards an update the same way it guards
+      //an insert, so one provider account cannot end up on two users.
+      if (errorCode(error) === UNIQUE_VIOLATION) {
+        throw conflict('That identity provider account is already linked to another user');
       }
 
       throw error;

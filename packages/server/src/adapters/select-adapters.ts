@@ -12,6 +12,7 @@ import { PostgresAdapter } from '@tweaktags/db-postgres';
 import {
   badRequest,
   type AuthAdapter,
+  type AwsCognitoConfig,
   type DbAdapter,
   type StorageAdapter,
   type StorageConfig,
@@ -94,6 +95,9 @@ export const buildStorageAdapter = (config: TweakTagsConfig): StorageAdapter | u
 
 //Builds the auth adapter that matches the config provider.
 //The auth adapter needs the database adapter so it can read and write users.
+//jwt is built in, since every install has it. Cognito is loaded from its own
+//package the same way the optional databases are, so a project that does not use
+//it never has to install the AWS SDK.
 export const buildAuthAdapter = (config: TweakTagsConfig, db: DbAdapter): AuthAdapter => {
   if (config.auth.provider === 'jwt') {
     return new JwtAuthAdapter(db, {
@@ -104,5 +108,15 @@ export const buildAuthAdapter = (config: TweakTagsConfig, db: DbAdapter): AuthAd
     });
   }
 
-  throw badRequest(`Unsupported auth provider "${String(config.auth.provider)}"`);
+  if (config.auth.provider === 'aws-cognito') {
+    const module = loadAdapter('@tweaktags/auth-aws-cognito', 'aws-cognito auth');
+    const AwsCognitoAuthAdapter = module.AwsCognitoAuthAdapter as new (
+      store: DbAdapter,
+      options: AwsCognitoConfig,
+    ) => AuthAdapter;
+
+    return new AwsCognitoAuthAdapter(db, config.auth.awsCognito);
+  }
+
+  throw badRequest(`Unsupported auth provider "${String((config.auth as { provider: string }).provider)}"`);
 };
