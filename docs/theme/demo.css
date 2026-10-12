@@ -1,0 +1,186 @@
+/*The live demo page: the steps, the notes, and the pretend customer website the
+  editing happens on. Loaded after site.css.*/
+
+.wrap {
+  max-width: 940px;
+  margin: 0 auto;
+  padding: 2rem 1.25rem 6rem;
+}
+
+h1 {
+  font-size: clamp(1.7rem, 4vw, 2.4rem);
+  line-height: 1.2;
+  margin: 2rem 0 0.75rem;
+}
+
+.lede {
+  color: var(--muted);
+  font-size: 1.05rem;
+  max-width: 62ch;
+}
+
+.steps {
+  display: grid;
+  gap: 0.75rem;
+  margin: 1.75rem 0;
+  padding: 1.25rem 1.25rem 1.25rem 2.5rem;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: var(--surface);
+}
+
+.steps li {
+  padding-left: 0.25rem;
+}
+
+.creds {
+  display: inline-block;
+  margin-top: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--border);
+  background: var(--raised);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.9rem;
+}
+
+.note {
+  border-left: 3px solid var(--primary);
+  padding: 0.75rem 1rem;
+  border-radius: 0.4rem;
+  background: var(--surface);
+  color: var(--muted);
+  margin: 1.5rem 0;
+}
+
+/*A note is usually one paragraph, but the user management one lists things
+  to try, and the browser default indent would crowd the colored border.*/
+.note ul {
+  margin: 0.6rem 0 0;
+  padding-left: 1.2rem;
+}
+
+.note li {
+  margin-bottom: 0.4rem;
+}
+
+/*The pretend customer website that the editing happens on.*/
+.site-demo {
+  margin: 2rem 0;
+  border: 1px solid var(--border);
+  border-radius: 0.9rem;
+  overflow: hidden;
+  background: #fff;
+  color: #14151a;
+}
+
+.site-demo .chrome {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.6rem 0.9rem;
+  background: var(--raised);
+  border-bottom: 1px solid var(--border);
+}
+
+.site-demo .chrome span {
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 50%;
+  background: #4a4d5a;
+}
+
+.site-demo .chrome small {
+  margin-left: 0.6rem;
+  color: var(--muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.75rem;
+}
+
+.site-demo .banner {
+  height: 190px;
+  background-color: #dfe3ea;
+  background-size: cover;
+  background-position: center;
+}
+
+.site-demo .body {
+  padding: 1.5rem 1.75rem 2rem;
+}
+
+.site-demo h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1.9rem;
+  color: #14151a;
+}
+
+.site-demo p {
+  margin: 0 0 1rem;
+  color: #3c4150;
+}
+
+/*An example component, the sort of card a real site is full of. Every piece
+  of text in it is a separate tag, which is the point: TweakTags edits the
+  parts of a component, not the component.*/
+.site-demo .cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 1rem;
+  margin: 1.75rem 0 0;
+  padding-top: 1.5rem;
+  border-top: 1px solid #e6e8ee;
+}
+
+.site-demo .card {
+  border: 1px solid #e6e8ee;
+  border-radius: 0.7rem;
+  padding: 1rem 1.1rem;
+  background: #fbfbfd;
+}
+
+.site-demo .card .eyebrow {
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #6b7280;
+  margin: 0 0 0.35rem;
+}
+
+.site-demo .card h3 {
+  margin: 0 0 0.4rem;
+  font-size: 1.05rem;
+  color: #14151a;
+}
+
+.site-demo .card p {
+  margin: 0;
+  font-size: 0.92rem;
+  line-height: 1.5;
+  color: #4b5563;
+}
+
+.site-demo .card .price {
+  display: block;
+  margin-top: 0.6rem;
+  font-weight: 700;
+  color: #14151a;
+}
+
+.site-demo .cta {
+  display: inline-block;
+  padding: 0.6rem 1.1rem;
+  border-radius: 0.5rem;
+  background: var(--primary);
+  color: #fff;
+  font-weight: 600;
+  text-decoration: none;
+  margin-top: 0;
+}
+
+/*The demo footer runs edge to edge under the pretend site, centered.*/
+footer {
+  max-width: none;
+  border-top: 1px solid var(--border);
+  padding: 1.5rem 1.25rem;
+  text-align: center;
+}

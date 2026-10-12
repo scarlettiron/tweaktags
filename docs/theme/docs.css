@@ -1,0 +1,386 @@
+/*The documentation page: the sidebar layout, section headings, and the static
+  previews of the editor UI. Loaded after site.css.*/
+
+/* Layout */
+.layout {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  gap: 2.5rem;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem 6rem;
+}
+
+nav.side {
+  position: sticky;
+  top: 5rem;
+  align-self: start;
+  height: max-content;
+}
+
+nav.side .group {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  margin: 1.25rem 0 0.5rem;
+}
+
+nav.side a {
+  display: block;
+  padding: 0.35rem 0.7rem;
+  border-radius: 0.4rem;
+  color: var(--muted);
+  font-size: 0.92rem;
+  border-left: 2px solid transparent;
+}
+
+nav.side a:hover {
+  color: var(--text);
+  background: var(--surface);
+}
+
+nav.side a.active {
+  color: var(--text);
+  background: var(--surface);
+  border-left-color: var(--primary);
+}
+
+main {
+  min-width: 0;
+}
+
+section {
+  scroll-margin-top: 5rem;
+  padding: 1.5rem 0 2.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+section:last-child {
+  border-bottom: none;
+}
+
+h1 {
+  font-size: clamp(2rem, 5vw, 3rem);
+  line-height: 1.1;
+  margin: 0 0 1rem;
+  letter-spacing: -0.02em;
+}
+
+h2 {
+  font-size: 1.6rem;
+  margin: 0 0 1rem;
+  letter-spacing: -0.01em;
+}
+
+h3 {
+  font-size: 1.1rem;
+  margin: 1.75rem 0 0.6rem;
+}
+
+.lede {
+  font-size: 1.2rem;
+  color: var(--muted);
+  max-width: 46rem;
+}
+
+p {
+  max-width: 46rem;
+}
+
+/* Preview stage for rendered UI examples */
+.stage {
+  position: relative;
+  margin: 1.25rem 0;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  overflow: hidden;
+  max-width: 46rem;
+}
+
+.stage .canvas {
+  position: relative;
+  min-height: 220px;
+  padding: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(120% 120% at 20% 0%, #2a3350 0%, #16171d 55%, #0e0f13 100%);
+}
+
+.stage .tag {
+  position: absolute;
+  top: 0.6rem;
+  left: 0.75rem;
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+/* Shared TweakTags widget styles, matching the real components */
+.v-font {
+  font-family: var(--font);
+  font-size: 14px;
+}
+
+.v-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+  padding: 0.5rem;
+  border-radius: 0.75rem;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 10px 34px rgba(0, 0, 0, 0.45);
+}
+
+.v-grip {
+  width: 10px;
+  height: 18px;
+  cursor: grab;
+  background-image: radial-gradient(var(--muted) 1.2px, transparent 1.3px);
+  background-size: 5px 5px;
+  background-position: center;
+}
+
+.v-email {
+  color: var(--muted);
+  padding: 0 0.35rem;
+}
+
+.v-btn {
+  border: none;
+  border-radius: 0.5rem;
+  padding: 0.45rem 0.75rem;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  background: var(--primary);
+  color: #fff;
+}
+
+.v-btn.subtle {
+  background: var(--raised);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-weight: 500;
+}
+
+.v-btn.icon {
+  width: 2.1rem;
+  padding: 0.45rem 0;
+  text-align: center;
+  background: var(--raised);
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+
+.v-btn.danger {
+  background: var(--danger);
+}
+
+/* Rich text toolbar */
+.v-toolbar {
+  display: inline-flex;
+  gap: 0.15rem;
+  padding: 0.3rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  box-shadow: 0 10px 34px rgba(0, 0, 0, 0.45);
+}
+
+.v-toolbar button {
+  min-width: 2rem;
+  height: 2rem;
+  border: none;
+  border-radius: 0.35rem;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  font-family: var(--font);
+  font-size: 0.9rem;
+}
+
+.v-toolbar button:hover {
+  background: var(--raised);
+}
+
+/* Login card */
+.v-card {
+  width: min(19rem, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 0.85rem;
+  border-radius: 0.75rem;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  box-shadow: 0 10px 34px rgba(0, 0, 0, 0.45);
+}
+
+.v-card .head {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-weight: 600;
+}
+
+.v-input {
+  width: 100%;
+  padding: 0.5rem 0.6rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--border);
+  background: var(--raised);
+  color: var(--text);
+  font: inherit;
+}
+
+/* Popup editor */
+.v-modal {
+  width: 100%;
+  border-radius: 0.6rem;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: #111;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+}
+
+.v-modal .top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid #2a2a2a;
+}
+
+.v-modal .body {
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  max-height: 240px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--primary) var(--raised);
+}
+
+.v-modal .body::-webkit-scrollbar {
+  width: 10px;
+}
+.v-modal .body::-webkit-scrollbar-track {
+  background: #1c1c1c;
+}
+.v-modal .body::-webkit-scrollbar-thumb {
+  background: var(--primary);
+  border-radius: 5px;
+}
+
+.v-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding-bottom: 0.9rem;
+  border-bottom: 1px solid #222;
+}
+
+.v-label {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--muted);
+}
+
+.v-mono {
+  font-family: var(--mono);
+  font-weight: 600;
+}
+
+/* Admin panel */
+.v-admin {
+  width: 100%;
+  border-radius: 0.6rem;
+  border: 1px solid var(--border);
+  background: #0e0f13;
+  overflow: hidden;
+}
+
+.v-admin .top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.v-admin .tabs {
+  display: flex;
+  gap: 0.4rem;
+  padding: 0.85rem 1rem 0;
+}
+
+.v-admin .panel {
+  margin: 1rem;
+  padding: 1rem;
+  border-radius: 0.6rem;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+.v-listrow {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--border);
+  background: var(--raised);
+}
+
+.v-badge {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 0.1rem 0.4rem;
+  border-radius: 0.3rem;
+  border: 1px solid var(--border);
+  color: var(--muted);
+}
+
+/* Responsive */
+@media (max-width: 820px) {
+  .layout {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+
+  nav.side {
+    position: static;
+    display: flex;
+    gap: 0.25rem;
+    overflow-x: auto;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  nav.side .group {
+    display: none;
+  }
+
+  nav.side a {
+    white-space: nowrap;
+    border-left: none;
+    border-bottom: 2px solid transparent;
+  }
+
+  nav.side a.active {
+    border-left: none;
+    border-bottom-color: var(--primary);
+  }
+}
