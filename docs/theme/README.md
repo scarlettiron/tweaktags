@@ -42,7 +42,14 @@ rule reads from them.
 
   <!--page content-->
 
-  <footer>Footer text and links.</footer>
+  <footer>
+    Footer text and links.
+    <!--Author signature, always the last thing on the page.-->
+    <a class="made-by" href="https://codescarlett.com" rel="author">
+      <img src="./theme/logo/codescarlett-dragonfly.svg" alt="" width="46" height="31" />
+      <span><strong>Scarlett A. Scott</strong><span class="handle">codescarlett</span></span>
+    </a>
+  </footer>
   <script src="./theme/site.js"></script>
 </body>
 ```
@@ -56,7 +63,7 @@ rule reads from them.
   <span class="pill">A short label</span>
 </div>
 
-<a class="cta" href="#install">Get started &rarr;</a>
+<a class="cta" href="#install">Get started</a>
 
 <div class="code">
   <div class="bar"><span>terminal</span><button class="copy">Copy</button></div>
@@ -78,6 +85,7 @@ Inside a code block, wrap tokens in `tok-c` (comment), `tok-k` (keyword), `tok-s
 | `wordmark-header.png`            | The light text wordmark at 3x the size the top bar shows it         |
 | `favicon-32.png`                 | Browser tab icon                                                    |
 | `apple-touch-icon.png`           | iOS home screen icon, on white because iOS fills transparency black |
+| `codescarlett-dragonfly.svg`     | The author's dragonfly mark, used in the footer signature           |
 
 The full size files are the masters. Make any new size from them rather than
 from one of the small ones.

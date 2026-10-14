@@ -179,7 +179,7 @@ place:
 
 Every package in the project, so you can jump straight to the piece you need:
 
-- **Start here:** [tweaktags](https://www.npmjs.com/package/tweaktags) — the front door, with a map of the whole project
+- **Start here:** [tweaktags](https://www.npmjs.com/package/tweaktags), the front door, with a map of the whole project
 - **Documentation:** [AWS Cognito authentication](https://scarlettiron.github.io/tweaktags/#cognito) on the docs site
 - **UI for your stack:** [@tweaktags/next](https://www.npmjs.com/package/@tweaktags/next) · [@tweaktags/react](https://www.npmjs.com/package/@tweaktags/react) · [@tweaktags/vanillajs](https://www.npmjs.com/package/@tweaktags/vanillajs)
 - **Backend:** [@tweaktags/server](https://www.npmjs.com/package/@tweaktags/server) · [@tweaktags/auth-jwt](https://www.npmjs.com/package/@tweaktags/auth-jwt) · **@tweaktags/auth-aws-cognito** (this package) · [@tweaktags/cli](https://www.npmjs.com/package/@tweaktags/cli)

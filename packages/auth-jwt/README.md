@@ -53,7 +53,7 @@ httpOnly cookies by default. See every option in the
 
 Every package in the project, so you can jump straight to the piece you need:
 
-- **Start here:** [tweaktags](https://www.npmjs.com/package/tweaktags) — the front door, with a map of the whole project
+- **Start here:** [tweaktags](https://www.npmjs.com/package/tweaktags), the front door, with a map of the whole project
 - **Documentation:** [Security and auth](https://scarlettiron.github.io/tweaktags/#security) on the docs site
 - **UI for your stack:** [@tweaktags/next](https://www.npmjs.com/package/@tweaktags/next) · [@tweaktags/react](https://www.npmjs.com/package/@tweaktags/react) · [@tweaktags/vanillajs](https://www.npmjs.com/package/@tweaktags/vanillajs)
 - **Backend:** [@tweaktags/server](https://www.npmjs.com/package/@tweaktags/server) · **@tweaktags/auth-jwt** (this package) · [@tweaktags/auth-aws-cognito](https://www.npmjs.com/package/@tweaktags/auth-aws-cognito) · [@tweaktags/cli](https://www.npmjs.com/package/@tweaktags/cli)

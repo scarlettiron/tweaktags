@@ -33,9 +33,9 @@ edit, create, delete, and manage users, all offline.
 
 ## Pages
 
-- **index.html** &mdash; edit in place, the default. Draggable bar, mobile menu, Tags panel.
-- **popup.html** &mdash; the popup form editor (`editInView: false`).
-- **admin.html** &mdash; the full page admin dashboard (`mountAdmin`).
+- **index.html**: edit in place, the default. Draggable bar, mobile menu, Tags panel.
+- **popup.html**: the popup form editor (`editInView: false`).
+- **admin.html**: the full page admin dashboard (`mountAdmin`).
 
 Reloading signs you out, since the mock keeps its state in memory.
 
